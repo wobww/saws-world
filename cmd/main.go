@@ -1,160 +1,86 @@
 package main
 
 import (
-	"bufio"
-	"encoding/binary"
 	"fmt"
+	"html/template"
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
+	"time"
 
-	"github.com/evanoberholster/imagemeta"
-	"github.com/rwcarlsen/goexif/exif"
-	"github.com/rwcarlsen/goexif/mknote"
+	"github.com/pkg/errors"
 )
 
 func main() {
-	img, err := os.Open("oteka.jpeg")
-	if err != nil {
-		panic(err.Error())
-	}
-	defer img.Close()
-
-	e, err := imagemeta.Decode(img)
-	if err != nil {
-		fmt.Println(err.Error())
+	// create uploads folder if not already created
+	if _, err := os.Stat("uploads"); os.IsNotExist(err) {
+		os.Mkdir("uploads", 0755)
 	}
 
-	fmt.Println(e)
-	img.Close()
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		tmpl, err := template.ParseFiles("templates/index.gohtml")
+		if err != nil {
+			fmt.Println(err.Error())
+			return
+		}
 
-	img, err = os.Open("oteka.jpeg")
-	if err != nil {
-		panic(err.Error())
-	}
-	defer img.Close()
+		tmpl.Execute(w, nil)
+	})
 
-	exif.RegisterParsers(mknote.All...)
-
-	getExif(img)
-
-	http.HandleFunc("/upload", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/upload", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("File Upload Endpoint Hit")
 
 		// Parse our multipart form, 10 << 20 specifies a maximum
 		// upload of 10 MB files.
 		r.ParseMultipartForm(10 << 20)
-		// FormFile returns the first file for the given key `myFile`
-		// it also returns the FileHeader so we can get the Filename,
-		// the Header and the size of the file
-		file, handler, err := r.FormFile("myFile")
+
+		file, header, err := r.FormFile("image")
 		if err != nil {
-			fmt.Println("Error Retrieving the File")
+			err = errors.Wrap(err, "error retrieving image")
 			fmt.Println(err)
 			return
 		}
 		defer file.Close()
-		fmt.Printf("Uploaded File: %+v\n", handler.Filename)
-		fmt.Printf("File Size: %+v\n", handler.Size)
-		fmt.Printf("MIME Header: %+v\n", handler.Header)
 
-		tempFile, err := os.CreateTemp("temp-images", "upload-*.jpg")
+		fmt.Printf("Uploaded File: %+v\n", header.Filename)
+		fmt.Printf("File Size: %+v\n", header.Size)
+		fmt.Printf("MIME Header: %+v\n", header.Header)
+
+		dst, err := os.Create(filepath.Join("uploads", newFilename(header.Filename)))
 		if err != nil {
-			panic(err.Error())
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
-		defer tempFile.Close()
+		defer dst.Close()
 
-		bytes, err := io.ReadAll(file)
+		// Copy the uploaded file to the new file
+		_, err = io.Copy(dst, file)
 		if err != nil {
-			panic("read all" + err.Error())
-		}
-
-		_, err = tempFile.Write(bytes)
-		if err != nil {
-			panic(err.Error())
-		}
-
-		tempFile, err = os.Open(tempFile.Name())
-		if err != nil {
-			panic(err.Error())
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 
-		getExif(tempFile)
+		fmt.Fprintf(w, "File %s uploaded successfully!", header.Filename)
 	})
+
+	fmt.Println("running at localhost:8080")
 
 	http.ListenAndServe(":8080", nil)
 
 }
 
-func getExif(r io.Reader) {
-	x, err := exif.Decode(r)
-	if err != nil && exif.IsCriticalError(err) {
-		fmt.Println("could not decode exif", err.Error())
-		return
-	}
+func newFilename(fileName string) string {
+	ext := filepath.Ext(fileName)
 
-	camModel, _ := x.Get(exif.Model) // normally, don't ignore errors!
-	fmt.Println(camModel.StringVal())
+	// Get the current date in the desired format
+	currentDate := time.Now().Format(time.RFC3339)
 
-	focal, _ := x.Get(exif.FocalLength)
-	numer, denom, _ := focal.Rat2(0) // retrieve first (only) rat. value
-	fmt.Printf("%v/%v", numer, denom)
+	// remove extension
+	withoutExt := fileName[:len(fileName)-len(filepath.Ext(fileName))]
 
-	// Two convenience functions exist for date/time taken and GPS coords:
-	tm, _ := x.DateTime()
-	fmt.Println("Taken: ", tm)
+	// Construct the new filename with the date
+	newFilename := fmt.Sprintf("%s-%s%s", withoutExt, currentDate, ext)
 
-	lat, long, _ := x.LatLong()
-	fmt.Println("lat, long: ", lat, ", ", long)
-}
-
-const jpeg_APP1 = 0xE1
-
-// newAppSec finds marker in r and returns the corresponding application data
-// section.
-func newAppSec(marker byte, r io.Reader) (*appSec, error) {
-	br := bufio.NewReader(r)
-	app := &appSec{marker: marker}
-	var dataLen int
-
-	// seek to marker
-	for dataLen == 0 {
-		if _, err := br.ReadBytes(0xFF); err != nil {
-			return nil, err
-		}
-		c, err := br.ReadByte()
-		if err != nil {
-			return nil, err
-		} else if c != marker {
-			continue
-		}
-
-		dataLenBytes := make([]byte, 2)
-		for k, _ := range dataLenBytes {
-			c, err := br.ReadByte()
-			if err != nil {
-				return nil, err
-			}
-			dataLenBytes[k] = c
-		}
-		dataLen = int(binary.BigEndian.Uint16(dataLenBytes)) - 2
-	}
-
-	// read section data
-	nread := 0
-	for nread < dataLen {
-		s := make([]byte, dataLen-nread)
-		n, err := br.Read(s)
-		nread += n
-		if err != nil && nread < dataLen {
-			return nil, err
-		}
-		app.data = append(app.data, s[:n]...)
-	}
-	return app, nil
-}
-
-type appSec struct {
-	marker byte
-	data   []byte
+	return newFilename
 }
