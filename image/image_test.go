@@ -1,6 +1,7 @@
 package image_test
 
 import (
+	"bytes"
 	"io"
 	"os"
 	"path/filepath"
@@ -55,4 +56,37 @@ func testFileSaved(t *testing.T, store image.Store, root, fileName, expectedFile
 
 	// cleanup file created
 	require.NoError(t, os.Remove(expectedPath))
+}
+
+func BenchmarkSave(b *testing.B) {
+	wd, err := os.Getwd()
+	require.NoError(b, err)
+
+	root := filepath.Join(wd, "test_images")
+	store, err := image.NewStore(root)
+	require.NoError(b, err)
+
+	ogImagePath := filepath.Join(root, "fish.jpg")
+	imageFile, err := os.Open(ogImagePath)
+	require.NoError(b, err)
+
+	bts, err := io.ReadAll(imageFile)
+	require.NoError(b, err)
+
+	newFile := ""
+
+	b.ResetTimer()
+
+	for range b.N {
+		buf := bytes.NewBuffer(bts)
+
+		b.StartTimer()
+		img, err := store.Save(buf)
+		b.StopTimer()
+
+		require.NoError(b, err)
+		newFile = img.FileName
+	}
+	//delete resulting file
+	require.NoError(b, os.Remove(filepath.Join(root, newFile)))
 }
