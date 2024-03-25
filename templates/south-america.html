@@ -1,0 +1,37 @@
+{{ block "south-america" . }}
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+
+        <script src="https://cdn.tailwindcss.com"></script>
+        <title>Saws</title>
+    </head>
+
+    <body>
+        <article>
+            <h1 class="text-3xl font-bold underline">{{ .Title }}</h1>
+            {{ block "image-upload-form" . }}
+            <form
+                enctype="multipart/form-data"
+                action="/south-america"
+                method="post"
+            >
+                <input type="file" name="image" accept="image/*" />
+                <input type="submit" value="upload" />
+            </form>
+            {{ end }}
+
+            <ul>
+                {{ range .Images}}
+                <li>
+                    <img src="{{ .Url }}" />
+                </li>
+                {{ end }}
+            </ul>
+        </article>
+    </body>
+</html>
+{{ end }}

@@ -1,13 +1,16 @@
+{{ block "index" . }}
 <!doctype html>
 <html lang="en">
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+        <script src="https://cdn.tailwindcss.com"></script>
         <title>Saws</title>
     </head>
-    <body>
-        <h1>Welcome to saws.world</h1>
+    <body class="m-4">
+        <p class="font-mono text-xl">Welcome to</p>
+        <h1 class="text-9xl">saws.world</h1>
         <article>
             <pre>
             Amidst the verdant fields, a chef's heart beats,
@@ -26,9 +29,7 @@
             Each bite a testament to the chef's ardent labor.
             </pre>
         </article>
-        <form enctype="multipart/form-data" action="/api/upload" method="post">
-            <input type="file" name="image" accept="image/*" />
-            <input type="submit" value="upload" />
-        </form>
+        <a href="/south-america">South America Trip</a>
     </body>
 </html>
+{{ end }}

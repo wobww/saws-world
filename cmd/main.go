@@ -2,34 +2,64 @@ package main
 
 import (
 	"fmt"
-	"html/template"
-	"io"
+	"io/fs"
 	"net/http"
-	"os"
 	"path/filepath"
-	"time"
+
+	"github.com/wobwainwwight/sa-photos/image"
+	"github.com/wobwainwwight/sa-photos/templates"
 
 	"github.com/pkg/errors"
 )
 
+var imageDir = filepath.Join("saws_world_data", "image_uploads")
+
 func main() {
-	// create uploads folder if not already created
-	if _, err := os.Stat("uploads"); os.IsNotExist(err) {
-		os.Mkdir("uploads", 0755)
+
+	appTemplates, err := templates.GetTemplates()
+	if err != nil {
+		err = errors.Wrap(err, "could not get app templates")
+		fmt.Println(err.Error())
 	}
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		tmpl, err := template.ParseFiles("templates/index.gohtml")
-		if err != nil {
-			fmt.Println(err.Error())
+	is, err := image.NewStore(imageDir)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+
+	http.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
+		tmpl := appTemplates.Lookup(templates.Index)
+		if tmpl == nil {
+			fmt.Printf("%s template not found\n", templates.Index)
 			return
 		}
 
 		tmpl.Execute(w, nil)
 	})
 
-	http.HandleFunc("/api/upload", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("GET /south-america", func(w http.ResponseWriter, r *http.Request) {
+		tmpl := appTemplates.Lookup(templates.SouthAmerica)
+		if tmpl == nil {
+			fmt.Printf("%s template not found\n", templates.SouthAmerica)
+			return
+		}
+
+		imageData := struct{ Title string }{
+			Title: "South America 2023/24!",
+		}
+
+		filepath.WalkDir(imageDir, func(path string, d fs.DirEntry, err error) error {
+			fmt.Println("path")
+			return err
+		})
+
+		tmpl.Execute(w, imageData)
+	})
+
+	http.HandleFunc("POST /south-america", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("File Upload Endpoint Hit")
+		fmt.Println(r.Method, r.RequestURI)
 
 		// Parse our multipart form, 10 << 20 specifies a maximum
 		// upload of 10 MB files.
@@ -47,40 +77,23 @@ func main() {
 		fmt.Printf("File Size: %+v\n", header.Size)
 		fmt.Printf("MIME Header: %+v\n", header.Header)
 
-		dst, err := os.Create(filepath.Join("uploads", newFilename(header.Filename)))
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		defer dst.Close()
-
-		// Copy the uploaded file to the new file
-		_, err = io.Copy(dst, file)
+		fileName, err := is.Save(file)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		fmt.Fprintf(w, "File %s uploaded successfully!", header.Filename)
+		w.Header().Add("Location", fmt.Sprintf("%s/%s", r.URL.Path, fileName))
+		w.WriteHeader(http.StatusCreated)
+
 	})
+	http.Handle("/static", http.FileServer(http.Dir("static")))
 
 	fmt.Println("running at localhost:8080")
 
-	http.ListenAndServe(":8080", nil)
+	err = http.ListenAndServe("localhost:8080", nil)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
 
-}
-
-func newFilename(fileName string) string {
-	ext := filepath.Ext(fileName)
-
-	// Get the current date in the desired format
-	currentDate := time.Now().Format(time.RFC3339)
-
-	// remove extension
-	withoutExt := fileName[:len(fileName)-len(filepath.Ext(fileName))]
-
-	// Construct the new filename with the date
-	newFilename := fmt.Sprintf("%s-%s%s", withoutExt, currentDate, ext)
-
-	return newFilename
 }
