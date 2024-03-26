@@ -89,12 +89,10 @@ func (s Store) Save(file io.Reader) (Image, error) {
 }
 
 func assertImageType(b []byte) (imgExt, error) {
-	mimeType := http.DetectContentType(b)
-
-	if mimeType == "image/jpeg" {
+	switch http.DetectContentType(b) {
+	case "image/jpeg":
 		return jpgExt, nil
-	}
-	if mimeType == "image/png" {
+	case "image/png":
 		return pngExt, nil
 	}
 	return "", errors.New("image is not jpg or png")
