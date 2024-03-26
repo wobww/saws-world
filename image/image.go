@@ -44,27 +44,22 @@ func (s Store) Save(file io.Reader) (Image, error) {
 	h := sha256.New()
 	fileBuf := new(bytes.Buffer)
 
-	buff := make([]byte, 512)
-	_, err := file.Read(buff)
+	extBuf := make([]byte, 512)
+	_, err := file.Read(extBuf)
 	if err != nil {
 		return Image{}, err
 	}
 
-	ext, err := assertImageType(buff)
-	if err != nil {
-		return Image{}, err
-	}
-
-	_, err = h.Write(buff)
-	if err != nil {
-		return Image{}, err
-	}
-	_, err = fileBuf.Write(buff)
+	ext, err := assertImageType(extBuf)
 	if err != nil {
 		return Image{}, err
 	}
 
 	mw := io.MultiWriter(fileBuf, h)
+	_, err = mw.Write(extBuf)
+	if err != nil {
+		return Image{}, err
+	}
 
 	_, err = io.Copy(mw, file)
 	if err != nil {
