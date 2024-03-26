@@ -4,9 +4,8 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"fmt"
-	"image/jpeg"
-	"image/png"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 
@@ -43,17 +42,33 @@ type Image struct {
 
 func (s Store) Save(file io.Reader) (Image, error) {
 	h := sha256.New()
-	extBuf := new(bytes.Buffer)
 	fileBuf := new(bytes.Buffer)
 
-	multiWriter := io.MultiWriter(h, extBuf, fileBuf)
-	if _, err := io.Copy(multiWriter, file); err != nil {
+	buff := make([]byte, 512)
+	_, err := file.Read(buff)
+	if err != nil {
 		return Image{}, err
 	}
 
-	ext, err := assertImageType(extBuf)
+	ext, err := assertImageType(buff)
 	if err != nil {
 		return Image{}, err
+	}
+
+	_, err = h.Write(buff)
+	if err != nil {
+		return Image{}, err
+	}
+	_, err = fileBuf.Write(buff)
+	if err != nil {
+		return Image{}, err
+	}
+
+	mw := io.MultiWriter(fileBuf, h)
+
+	_, err = io.Copy(mw, file)
+	if err != nil {
+		return Image{}, errors.Wrap(err, "could not save image")
 	}
 
 	fileName := fmt.Sprintf("%x", h.Sum(nil))[:12] + string(ext)
@@ -73,22 +88,14 @@ func (s Store) Save(file io.Reader) (Image, error) {
 	return Image{FileName: fileName}, nil
 }
 
-func assertImageType(r io.Reader) (imgExt, error) {
-	jpgBuf, pngBuf := new(bytes.Buffer), new(bytes.Buffer)
+func assertImageType(b []byte) (imgExt, error) {
+	mimeType := http.DetectContentType(b)
 
-	mw := io.MultiWriter(jpgBuf, pngBuf)
-	if _, err := io.Copy(mw, r); err != nil {
-		return "", err
-	}
-
-	_, err := jpeg.DecodeConfig(jpgBuf)
-	if err == nil {
+	if mimeType == "image/jpeg" {
 		return jpgExt, nil
 	}
-
-	_, err = png.DecodeConfig(pngBuf)
-	if err == nil {
+	if mimeType == "image/png" {
 		return pngExt, nil
 	}
-	return "", errors.Wrap(err, "image is not jpg or png")
+	return "", errors.New("image is not jpg or png")
 }
