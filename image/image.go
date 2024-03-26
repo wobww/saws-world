@@ -74,19 +74,19 @@ func (s Store) Save(file io.Reader) (Image, error) {
 }
 
 func assertImageType(r io.Reader) (imgExt, error) {
-	b, err := io.ReadAll(r)
-	if err != nil {
-		return "", errors.Wrap(err, "could not assert image type")
+	jpgBuf, pngBuf := new(bytes.Buffer), new(bytes.Buffer)
+
+	mw := io.MultiWriter(jpgBuf, pngBuf)
+	if _, err := io.Copy(mw, r); err != nil {
+		return "", err
 	}
 
-	buf := bytes.NewReader(b)
-	_, err = jpeg.DecodeConfig(buf)
+	_, err := jpeg.DecodeConfig(jpgBuf)
 	if err == nil {
 		return jpgExt, nil
 	}
 
-	buf = bytes.NewReader(b)
-	_, err = png.DecodeConfig(buf)
+	_, err = png.DecodeConfig(pngBuf)
 	if err == nil {
 		return pngExt, nil
 	}
