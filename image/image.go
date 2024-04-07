@@ -25,6 +25,10 @@ func NewStore(root string) (Store, error) {
 	return Store{dir: root}, nil
 }
 
+type Saver interface {
+	Save(r io.Reader) (Image, error)
+}
+
 type Store struct {
 	dir string
 }
@@ -37,7 +41,9 @@ const (
 )
 
 type Image struct {
+	ID       string
 	FileName string
+	MimeType string
 }
 
 func (s Store) Save(file io.Reader) (Image, error) {
@@ -50,7 +56,7 @@ func (s Store) Save(file io.Reader) (Image, error) {
 		return Image{}, err
 	}
 
-	ext, err := assertImageType(extBuf)
+	ext, mimeType, err := assertImageType(extBuf)
 	if err != nil {
 		return Image{}, err
 	}
@@ -66,7 +72,9 @@ func (s Store) Save(file io.Reader) (Image, error) {
 		return Image{}, errors.Wrap(err, "could not save image")
 	}
 
-	fileName := fmt.Sprintf("%x", h.Sum(nil))[:12] + string(ext)
+	id := fmt.Sprintf("%x", h.Sum(nil))[:12]
+
+	fileName := id + string(ext)
 
 	dst, err := os.Create(filepath.Join(s.dir, fileName))
 	if err != nil {
@@ -80,11 +88,24 @@ func (s Store) Save(file io.Reader) (Image, error) {
 		return Image{}, errors.Wrap(err, "could not save image")
 	}
 
-	return Image{FileName: fileName}, nil
+	return Image{
+		ID:       id,
+		FileName: fileName,
+		MimeType: mimeType,
+	}, nil
 }
 
-func assertImageType(b []byte) (imgExt, error) {
-	switch http.DetectContentType(b) {
+func assertImageType(b []byte) (imgExt, string, error) {
+	mimeType := http.DetectContentType(b)
+	imgExt, err := GetExtFromMimeType(mimeType)
+	if err != nil {
+		return "", "", err
+	}
+	return imgExt, mimeType, nil
+}
+
+func GetExtFromMimeType(mimeType string) (imgExt, error) {
+	switch mimeType {
 	case "image/jpeg":
 		return jpgExt, nil
 	case "image/png":

@@ -1,11 +1,17 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	"io/fs"
+	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
+	"time"
 
+	"github.com/wobwainwwight/sa-photos/db"
 	"github.com/wobwainwwight/sa-photos/image"
 	"github.com/wobwainwwight/sa-photos/templates"
 
@@ -13,53 +19,74 @@ import (
 )
 
 var imageDir = filepath.Join("saws_world_data", "image_uploads")
+var dsn = "file:saws_world_data/saws.sqlite"
 
 func main() {
-
 	appTemplates, err := templates.GetTemplates()
 	if err != nil {
-		err = errors.Wrap(err, "could not get app templates")
-		fmt.Println(err.Error())
+		log.Fatalf("could not get app templates: %s", err.Error())
+		return
 	}
 
 	is, err := image.NewStore(imageDir)
 	if err != nil {
-		fmt.Println(err.Error())
+		log.Fatalf("could not setup image file store: %s", err.Error())
 		return
 	}
 
-	http.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
+	table, err := db.NewImageTable(dsn)
+	if err != nil {
+		log.Fatalf("could not create image table: %s", err.Error())
+		return
+	}
+	defer table.Close()
+
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		tmpl := appTemplates.Lookup(templates.Index)
 		if tmpl == nil {
-			fmt.Printf("%s template not found\n", templates.Index)
+			log.Printf("%s template not found\n", templates.Index)
 			return
 		}
 
 		tmpl.Execute(w, nil)
 	})
 
-	http.HandleFunc("GET /south-america", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /south-america", func(w http.ResponseWriter, r *http.Request) {
 		tmpl := appTemplates.Lookup(templates.SouthAmerica)
 		if tmpl == nil {
-			fmt.Printf("%s template not found\n", templates.SouthAmerica)
+			log.Printf("%s template not found\n", templates.SouthAmerica)
 			return
 		}
 
-		imageData := struct{ Title string }{
+		type imageData struct {
+			Title     string
+			ImageURLs []string
+		}
+
+		imgData := imageData{
 			Title: "South America 2023/24!",
 		}
 
-		filepath.WalkDir(imageDir, func(path string, d fs.DirEntry, err error) error {
-			fmt.Println("path")
-			return err
-		})
+		imgs, err := table.Get()
+		if err != nil {
+			log.Println(err.Error())
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
-		tmpl.Execute(w, imageData)
+		for _, img := range imgs {
+			log.Println(img.ID)
+			imgData.ImageURLs = append(imgData.ImageURLs, fmt.Sprintf("images/%s", img.ID))
+		}
+
+		tmpl.Execute(w, imgData)
 	})
 
-	http.HandleFunc("POST /south-america", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println("File Upload Endpoint Hit")
-		fmt.Println(r.Method, r.RequestURI)
+	mux.HandleFunc("POST /south-america", func(w http.ResponseWriter, r *http.Request) {
+		log.Println("File Upload Endpoint Hit")
+		log.Println(r.Method, r.RequestURI)
 
 		// Parse our multipart form, 10 << 20 specifies a maximum
 		// upload of 10 MB files.
@@ -68,32 +95,94 @@ func main() {
 		file, header, err := r.FormFile("image")
 		if err != nil {
 			err = errors.Wrap(err, "error retrieving image")
-			fmt.Println(err)
+			log.Println(err)
 			return
 		}
 		defer file.Close()
 
-		fmt.Printf("Uploaded File: %+v\n", header.Filename)
-		fmt.Printf("File Size: %+v\n", header.Size)
-		fmt.Printf("MIME Header: %+v\n", header.Header)
+		log.Printf("Uploaded File: %+v\n", header.Filename)
+		log.Printf("File Size: %+v\n", header.Size)
+		log.Printf("MIME Header: %+v\n", header.Header)
 
-		fileName, err := is.Save(file)
+		img, err := is.Save(file)
 		if err != nil {
+			err = fmt.Errorf("could not save image file: %w", err)
+			log.Print(err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		w.Header().Add("Location", fmt.Sprintf("%s/%s", r.URL.Path, fileName))
+		err = table.Save(db.Image{
+			ID:         img.ID,
+			MimeType:   img.MimeType,
+			Location:   "",
+			UploadedAt: time.Now(),
+		})
+		if err != nil {
+			err = fmt.Errorf("could not save image %s to table: %w", img.ID, err)
+			log.Print(err.Error())
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Add("Location", fmt.Sprintf("%s/images/%s", r.URL.Path, img.ID))
 		w.WriteHeader(http.StatusCreated)
-
 	})
-	http.Handle("/static", http.FileServer(http.Dir("static")))
 
-	fmt.Println("running at localhost:8080")
+	mux.HandleFunc("GET /images/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		log.Println("get image", id)
 
-	err = http.ListenAndServe("localhost:8080", nil)
-	if err != nil {
-		fmt.Println(err.Error())
+		img, err := table.GetByID(id)
+		if err != nil {
+			log.Println(err.Error())
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		ext, err := image.GetExtFromMimeType(img.MimeType)
+		if err != nil {
+			log.Println(err.Error())
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		filePath := filepath.Join(imageDir, img.ID+string(ext))
+
+		fileBytes, err := os.ReadFile(filePath)
+		if err != nil {
+			log.Println(err.Error())
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", img.MimeType)
+		w.Write(fileBytes)
+	})
+
+	signalCh := make(chan os.Signal, 1)
+	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
+
+	srv := &http.Server{
+		Addr:    "localhost:8080",
+		Handler: mux,
+	}
+	go func() {
+		log.Println("running at localhost:8080")
+		err = srv.ListenAndServe()
+		if err != nil && err != http.ErrServerClosed {
+			log.Fatalf("could not start server: %s", err.Error())
+		}
+	}()
+
+	sig := <-signalCh
+	log.Printf("Received signal: %v\n", sig)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatalf("Server shutdown failed: %v\n", err)
 	}
 
+	log.Println("Server shutdown gracefully")
 }

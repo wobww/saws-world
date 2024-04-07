@@ -15,7 +15,7 @@ func TestImageStore(t *testing.T) {
 	wd, err := os.Getwd()
 	require.NoError(t, err)
 
-	root := filepath.Join(wd, "test_images")
+	root := filepath.Join(wd, "imagetest")
 	store, err := image.NewStore(root)
 	require.NoError(t, err)
 
@@ -62,7 +62,7 @@ func BenchmarkSave(b *testing.B) {
 	wd, err := os.Getwd()
 	require.NoError(b, err)
 
-	root := filepath.Join(wd, "test_images")
+	root := filepath.Join(wd, "imagetest")
 	store, err := image.NewStore(root)
 	require.NoError(b, err)
 
