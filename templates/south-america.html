@@ -19,21 +19,42 @@
             <h1 class="text-3xl font-bold underline">{{ .Title }}</h1>
             {{ block "image-upload-form" . }}
             <form
-                enctype="multipart/form-data"
-                action="/south-america"
-                method="post"
+                hx-encoding="multipart/form-data"
+                hx-target="#image-list"
+                hx-put="/south-america/images"
+                hx-swap="afterbegin"
             >
                 <input type="file" name="image" accept="image/*" />
                 <input type="submit" value="upload" />
             </form>
             {{ end }}
 
-            <ul>
-                {{ range .ImageURLs}}
-                <li>
-                    <img src="{{ . }}" />
+            <ul id="image-list" class="relative">
+                {{ range .Images}} {{ block "image-list-item" .}}
+                <li
+                    hx-delete="{{.URL}}"
+                    hx-trigger="click[ctrlKey]"
+                    hx-swap="delete"
+                    class="block left-0 absolute top-0"
+                    style="
+                        width: {{.Width}}px;
+                        height: {{.Height}}px;
+                        transform: translate3d({{.TranslateX}}px, {{.TranslateY}}px, 0px);"
+                >
+                    <a
+                        class="bottom-0 left-0 absolute right-0 top-0 overflow-hidden"
+                        href="{{.URL}}"
+                        hx-delete="{{.URL}}"
+                        hx-trigger="click[ctrlKey]"
+                        hx-swap="delete"
+                    >
+                        <div
+                            class="bottom-0 top-0 left-0 right-0 absolute bg-no-repeat bg-cover"
+                            style="opacity:1; background-image: url({{ .URL }});"
+                        ></div>
+                    </a>
                 </li>
-                {{ end }}
+                {{ end }} {{ end }}
             </ul>
         </article>
     </body>

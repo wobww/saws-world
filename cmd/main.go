@@ -19,7 +19,7 @@ import (
 )
 
 var imageDir = filepath.Join("saws_world_data", "image_uploads")
-var dsn = "file:saws_world_data/saws.sqlite"
+var dsn = "file:saws_world_data/saws.sqlite?_journal=WAL"
 
 func main() {
 	appTemplates, err := templates.GetTemplates()
@@ -28,7 +28,7 @@ func main() {
 		return
 	}
 
-	is, err := image.NewStore(imageDir)
+	is, err := image.NewImageFileStore(imageDir)
 	if err != nil {
 		log.Fatalf("could not setup image file store: %s", err.Error())
 		return
@@ -60,9 +60,17 @@ func main() {
 			return
 		}
 
+		type imageListItem struct {
+			Width      int
+			Height     int
+			URL        string
+			TranslateX int
+			TranslateY int
+		}
+
 		type imageData struct {
-			Title     string
-			ImageURLs []string
+			Title  string
+			Images []imageListItem
 		}
 
 		imgData := imageData{
@@ -76,16 +84,34 @@ func main() {
 			return
 		}
 
-		for _, img := range imgs {
-			log.Println(img.ID)
-			imgData.ImageURLs = append(imgData.ImageURLs, fmt.Sprintf("images/%s", img.ID))
+		log.Println("images len", len(imgs))
+		imgData.Images = make([]imageListItem, len(imgs))
+		targetHeight := 350
+		for i, img := range imgs {
+			w := image.ResizeWidth(img.Width, img.Height, targetHeight)
+
+			translateX := 0
+			if i != 0 {
+				translateX = imgData.Images[i-1].Width
+			}
+
+			imgData.Images[i] = imageListItem{
+				Width:      w,
+				Height:     targetHeight,
+				TranslateX: translateX,
+				TranslateY: 0,
+				URL:        fmt.Sprintf("images/%s?w=%d&h=%d", img.ID, w, targetHeight),
+			}
 		}
 
-		tmpl.Execute(w, imgData)
+		err = tmpl.Execute(w, imgData)
+		if err != nil {
+			log.Println(err.Error())
+		}
 	})
 
-	mux.HandleFunc("POST /south-america", func(w http.ResponseWriter, r *http.Request) {
-		log.Println("File Upload Endpoint Hit")
+	mux.HandleFunc("PUT /south-america/images", func(w http.ResponseWriter, r *http.Request) {
+		log.Println("Image file Upload Endpoint Hit")
 		log.Println(r.Method, r.RequestURI)
 
 		// Parse our multipart form, 10 << 20 specifies a maximum
@@ -116,6 +142,8 @@ func main() {
 			ID:         img.ID,
 			MimeType:   img.MimeType,
 			Location:   "",
+			Width:      img.Width,
+			Height:     img.Height,
 			UploadedAt: time.Now(),
 		})
 		if err != nil {
@@ -125,38 +153,53 @@ func main() {
 			return
 		}
 
-		w.Header().Add("Location", fmt.Sprintf("%s/images/%s", r.URL.Path, img.ID))
+		imageURL := fmt.Sprintf("/images/%s", img.ID)
+		w.Header().Add("Location", imageURL)
 		w.WriteHeader(http.StatusCreated)
+
+		tmpl := appTemplates.Lookup("image-list-item")
+		tmpl.Execute(w, imageURL)
+
 	})
 
 	mux.HandleFunc("GET /images/{id}", func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		log.Println("get image", id)
+		log.Println("GET image", id)
 
-		img, err := table.GetByID(id)
+		fileBytes, err := is.ReadFile(id)
 		if err != nil {
+			code := http.StatusInternalServerError
+			if image.IsNotFound(err) {
+				code = http.StatusNotFound
+			}
 			log.Println(err.Error())
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, err.Error(), code)
 			return
 		}
 
-		ext, err := image.GetExtFromMimeType(img.MimeType)
-		if err != nil {
-			log.Println(err.Error())
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		filePath := filepath.Join(imageDir, img.ID+string(ext))
-
-		fileBytes, err := os.ReadFile(filePath)
-		if err != nil {
-			log.Println(err.Error())
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		w.Header().Set("Content-Type", img.MimeType)
 		w.Write(fileBytes)
+	})
+
+	mux.HandleFunc("DELETE /images/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		log.Printf("DELETE %s", id)
+		err = table.Delete(id)
+		if err != nil {
+			msg := fmt.Sprintf("could not delete image %s from table: %s", id, err.Error())
+			log.Println(msg)
+			http.Error(w, msg, http.StatusInternalServerError)
+			return
+		}
+
+		err = is.Delete(id)
+		if err != nil {
+			msg := fmt.Sprintf("could not delete image file %s: %s", id, err.Error())
+			log.Println(msg)
+			http.Error(w, msg, http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+
 	})
 
 	signalCh := make(chan os.Signal, 1)

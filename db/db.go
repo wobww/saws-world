@@ -2,7 +2,6 @@ package db
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -57,6 +56,8 @@ func (i *ImageTable) CreateImageTable() error {
 	    id TEXT PRIMARY KEY,
 	    mime_type TEXT NOT NULL,
 		location TEXT,
+		width INT NOT NULL,
+		height INT NOT NULL,
 	    created_at DATETIME,
 		uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	) WITHOUT ROWID;`)
@@ -64,10 +65,15 @@ func (i *ImageTable) CreateImageTable() error {
 }
 
 func (i *ImageTable) Save(img Image) error {
-	_, err := i.DB.Exec("INSERT INTO image (id, mime_type, location, created_at) VALUES (?,?,?,?);",
+	_, err := i.DB.Exec(`
+		INSERT INTO image
+		(id, mime_type, location, width, height, created_at)
+		VALUES (?,?,?,?,?,?);`,
 		img.ID,
 		img.MimeType,
 		img.Location,
+		img.Width,
+		img.Height,
 		img.CreatedAt,
 	)
 
@@ -75,44 +81,51 @@ func (i *ImageTable) Save(img Image) error {
 }
 
 func (i *ImageTable) GetByID(id string) (Image, error) {
-	res, err := i.DB.Query("SELECT DISTINCT * FROM image WHERE id = (?);", id)
-	if err != nil {
-		return Image{}, nil
-	}
-	defer res.Close()
-
-	img := Image{}
-
-	if res.Next() {
-		err = res.Scan(&img.ID, &img.MimeType, &img.Location, &img.CreatedAt, &img.UploadedAt)
-	} else {
-		return Image{}, errors.New("not found")
-	}
-
-	if err != nil {
+	row := i.DB.QueryRow("SELECT DISTINCT * FROM image WHERE id = (?);", id)
+	if err := row.Err(); err != nil {
 		return Image{}, err
 	}
 
-	return img, nil
+	return i.scanImageRow(row)
 }
 
 func (i *ImageTable) Get() ([]Image, error) {
-	res, err := i.DB.Query("SELECT * FROM image;")
+	rows, err := i.DB.Query("SELECT * FROM image;")
 	if err != nil {
 		return []Image{}, nil
 	}
-	defer res.Close()
+	defer rows.Close()
 
 	imgs := []Image{}
-	for res.Next() {
-		img := Image{}
-		err = res.Scan(&img.ID, &img.MimeType, &img.Location, &img.CreatedAt, &img.UploadedAt)
+	for rows.Next() {
+		img, err := i.scanImageRow(rows)
 		if err != nil {
-			return []Image{}, fmt.Errorf("could not scan image row: %w", err)
+			return []Image{}, err
 		}
 		imgs = append(imgs, img)
 	}
 	return imgs, nil
+}
+
+type scanner interface {
+	Scan(a ...any) error
+}
+
+func (i *ImageTable) scanImageRow(s scanner) (Image, error) {
+	img := Image{}
+	err := s.Scan(&img.ID, &img.MimeType, &img.Location, &img.Width, &img.Height, &img.CreatedAt, &img.UploadedAt)
+	if err != nil {
+		return Image{}, fmt.Errorf("could not scan image row: %w", err)
+	}
+	return img, nil
+}
+
+func (i *ImageTable) Delete(id string) error {
+	_, err := i.DB.Exec("DELETE FROM image WHERE id = (?)", id)
+	if err != nil {
+		return fmt.Errorf("could not remove image %s : %w", id, err)
+	}
+	return nil
 }
 
 func (i *ImageTable) Close() error {
@@ -138,6 +151,8 @@ type Image struct {
 	ID         string
 	MimeType   string
 	Location   string
+	Width      int
+	Height     int
 	CreatedAt  time.Time
 	UploadedAt time.Time
 }

@@ -37,7 +37,7 @@ func NewStore() *TestStore {
 	if err != nil {
 		panic("could not create test store: " + err.Error())
 	}
-	st, err := image.NewStore(wd)
+	st, err := image.NewImageFileStore(wd)
 	if err != nil {
 		panic("could not create test store: " + err.Error())
 	}
@@ -50,7 +50,7 @@ func NewStore() *TestStore {
 }
 
 type TestStore struct {
-	store     *image.Store
+	store     *image.ImageFileStore
 	dir       string
 	fileNames []string
 }
