@@ -29,29 +29,23 @@
             </form>
             {{ end }}
 
-            <ul id="image-list" class="relative">
+            <ul
+                id="image-list"
+                class="grid gap-3 my-3 mx-3"
+                style="
+                    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                "
+            >
                 {{ range .Images}} {{ block "image-list-item" .}}
-                <li
-                    hx-delete="{{.URL}}"
-                    hx-trigger="click[ctrlKey]"
-                    hx-swap="delete"
-                    class="block left-0 absolute top-0"
-                    style="
-                        width: {{.Width}}px;
-                        height: {{.Height}}px;
-                        transform: translate3d({{.TranslateX}}px, {{.TranslateY}}px, 0px);"
-                >
-                    <a
-                        class="bottom-0 left-0 absolute right-0 top-0 overflow-hidden"
-                        href="{{.URL}}"
-                        hx-delete="{{.URL}}"
-                        hx-trigger="click[ctrlKey]"
-                        hx-swap="delete"
-                    >
-                        <div
-                            class="bottom-0 top-0 left-0 right-0 absolute bg-no-repeat bg-cover"
-                            style="opacity:1; background-image: url({{ .URL }});"
-                        ></div>
+                <li>
+                    <a href="{{.URL}}">
+                        <figure>
+                            <img
+                                src="{{.URL}}"
+                                width="{{.Width}}"
+                                height="{{.Height}}"
+                            />
+                        </figure>
                     </a>
                 </li>
                 {{ end }} {{ end }}
