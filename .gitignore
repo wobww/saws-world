@@ -1,3 +1,4 @@
 **/**.DS_Store
 /saws_world_data/**
 /tmp/**
+/cmd/main

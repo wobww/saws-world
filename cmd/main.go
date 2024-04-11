@@ -61,6 +61,17 @@ func main() {
 			return
 		}
 
+		opts := db.GetOpts{}
+		if r.URL.Query().Get("order") == "latest" {
+			opts.OrderDirection = db.DESC
+		}
+		imgs, err := table.Get(opts)
+		if err != nil {
+			log.Println(err.Error())
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
 		type imageListItem struct {
 			Width      int
 			Height     int
@@ -79,14 +90,6 @@ func main() {
 			Title: "South America 2023/24!",
 		}
 
-		imgs, err := table.Get()
-		if err != nil {
-			log.Println(err.Error())
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		log.Println("images len", len(imgs))
 		imgData.Images = make([]imageListItem, len(imgs))
 		targetHeight := 350
 		for i, img := range imgs {
@@ -293,7 +296,7 @@ func main() {
 	log.Println("Server shutdown gracefully")
 }
 
-func saveImage(ifs image.ImageFileStore, table db.ImageTable, imageFile io.Reader) (image.Image, error) {
+func saveImage(ifs image.ImageFileStore, table *db.ImageTable, imageFile io.Reader) (image.Image, error) {
 	img, err := ifs.Save(imageFile)
 	if err != nil {
 		err = fmt.Errorf("could not save image file: %w", err)

@@ -9,14 +9,14 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-func NewImageTable(dsn string) (ImageTable, error) {
+func NewImageTable(dsn string) (*ImageTable, error) {
 	if len(strings.TrimSpace(dsn)) == 0 {
 		dsn = "file:saws.db"
 	}
 
 	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
-		return ImageTable{}, err
+		return nil, err
 	}
 
 	i := ImageTable{db}
@@ -24,10 +24,10 @@ func NewImageTable(dsn string) (ImageTable, error) {
 	if !ok {
 		err = i.CreateImageTable()
 		if err != nil {
-			return ImageTable{}, err
+			return nil, err
 		}
 	}
-	return i, nil
+	return &i, nil
 }
 
 func (i *ImageTable) CheckImageTableExists() (TableInfo, bool, error) {
@@ -91,8 +91,31 @@ func (i *ImageTable) GetByID(id string) (Image, error) {
 	return i.scanImageRow(row)
 }
 
-func (i *ImageTable) Get() ([]Image, error) {
-	rows, err := i.DB.Query("SELECT * FROM image ORDER BY created_at;")
+type OrderDirection string
+
+const ASC = OrderDirection("ASC")
+const DESC = OrderDirection("DESC")
+
+type GetOpts struct {
+	OrderDirection OrderDirection
+}
+
+func (i *ImageTable) Get(opts ...GetOpts) ([]Image, error) {
+	direction := ASC
+	if len(opts) > 0 && len(opts[0].OrderDirection) != 0 {
+		// ignore other opts
+		direction = opts[0].OrderDirection
+	}
+	fmt.Println(direction)
+
+	var rows *sql.Rows
+	var err error
+	if direction == ASC {
+		rows, err = i.getASC()
+	} else {
+		rows, err = i.getDESC()
+	}
+
 	if err != nil {
 		return []Image{}, nil
 	}
@@ -107,6 +130,14 @@ func (i *ImageTable) Get() ([]Image, error) {
 		imgs = append(imgs, img)
 	}
 	return imgs, nil
+}
+
+func (i *ImageTable) getASC() (*sql.Rows, error) {
+	return i.DB.Query("SELECT * FROM image ORDER BY created_at ASC;")
+}
+
+func (i *ImageTable) getDESC() (*sql.Rows, error) {
+	return i.DB.Query("SELECT * FROM image ORDER BY created_at DESC;")
 }
 
 // GetPrev returns the Image previous to the one pointed to by id

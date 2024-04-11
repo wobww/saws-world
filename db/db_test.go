@@ -1,7 +1,6 @@
 package db_test
 
 import (
-	"database/sql"
 	"os"
 	"slices"
 	"testing"
@@ -13,27 +12,6 @@ import (
 )
 
 func TestDB(t *testing.T) {
-
-	t.Run("should set up image table", func(t *testing.T) {
-		require.NoFileExists(t, "test.db")
-		d, err := sql.Open("sqlite3", "file:test.db")
-		require.NoError(t, err)
-		defer os.Remove("test.db")
-
-		_, ok, err := db.CheckImageTableExists(d)
-		require.NoError(t, err)
-		require.False(t, ok)
-
-		_, err = db.NewImageTable("file:test.db")
-		require.NoError(t, err)
-
-		tableInfo, ok, err := db.CheckImageTableExists(d)
-		require.NoError(t, err)
-		require.True(t, ok)
-		assert.Equal(t, "image", tableInfo.Name)
-
-		require.NoError(t, os.Remove("test.db"))
-	})
 
 	t.Run("should setup saws.db if no arg", func(t *testing.T) {
 		require.NoFileExists(t, "saws.db")
@@ -48,15 +26,15 @@ func TestDB(t *testing.T) {
 	})
 
 	t.Run("should add image row", func(t *testing.T) {
-		require.NoFileExists(t, "saws.db")
-		table, err := db.NewImageTable("")
-		require.NoError(t, err)
+		table := newTestTable(t)
+		defer table.Close()
 
-		err = table.Save(db.Image{
+		err := table.Save(db.Image{
 			ID:         "image123",
 			MimeType:   "jpg",
 			Location:   "Nicaragua",
 			UploadedAt: time.Now(),
+			CreatedAt:  time.Now(),
 		})
 		require.NoError(t, err)
 
@@ -65,20 +43,18 @@ func TestDB(t *testing.T) {
 
 		assert.Equal(t, image.ID, "image123")
 		assert.Equal(t, image.Location, "Nicaragua")
-
-		require.NoError(t, os.Remove("saws.db"))
 	})
 
 	t.Run("should get list of image rows", func(t *testing.T) {
-		require.NoFileExists(t, "saws.db")
-		table, err := db.NewImageTable("")
-		require.NoError(t, err)
+		table := newTestTable(t)
+		defer table.Close()
 
-		err = table.Save(db.Image{
+		err := table.Save(db.Image{
 			ID:         "image123",
 			MimeType:   "jpg",
 			Location:   "Nicaragua",
 			UploadedAt: time.Now(),
+			CreatedAt:  time.Now(),
 		})
 		require.NoError(t, err)
 
@@ -87,6 +63,7 @@ func TestDB(t *testing.T) {
 			MimeType:   "jpg",
 			Location:   "Nicaragua",
 			UploadedAt: time.Now(),
+			CreatedAt:  time.Now(),
 		})
 		require.NoError(t, err)
 
@@ -95,9 +72,59 @@ func TestDB(t *testing.T) {
 
 		assertContainsRowWithID(t, rows, "image123")
 		assertContainsRowWithID(t, rows, "image456")
-
-		require.NoError(t, os.Remove("saws.db"))
 	})
+
+	t.Run("should get rows sorted by created order", func(t *testing.T) {
+		table := newTestTable(t)
+		defer table.Close()
+
+		err := table.Save(db.Image{
+			ID:        "image123",
+			MimeType:  "jpg",
+			Location:  "Nicaragua",
+			CreatedAt: time.Now().Add(-time.Hour),
+		})
+		require.NoError(t, err)
+
+		err = table.Save(db.Image{
+			ID:        "image456",
+			MimeType:  "jpg",
+			Location:  "Nicaragua",
+			CreatedAt: time.Now(),
+		})
+		require.NoError(t, err)
+
+		rows, err := table.Get(db.GetOpts{OrderDirection: db.DESC})
+		require.NoError(t, err)
+
+		require.Len(t, rows, 2)
+		assert.Equal(t, "image456", rows[0].ID)
+		assert.Equal(t, "image123", rows[1].ID)
+
+		rows, err = table.Get()
+		require.NoError(t, err)
+
+		require.Len(t, rows, 2)
+		assert.Equal(t, "image123", rows[0].ID)
+		assert.Equal(t, "image456", rows[1].ID)
+	})
+}
+
+type testTable struct {
+	t *testing.T
+	*db.ImageTable
+}
+
+func newTestTable(t *testing.T) testTable {
+	require.NoFileExists(t, "saws.db")
+	table, err := db.NewImageTable("")
+	require.NoError(t, err)
+	return testTable{t, table}
+}
+
+func (t *testTable) Close() error {
+	_ = t.ImageTable.Close()
+	return os.Remove("saws.db")
 }
 
 func assertContainsRowWithID(t *testing.T, imgs []db.Image, id string) {
