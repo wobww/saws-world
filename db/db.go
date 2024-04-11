@@ -58,6 +58,7 @@ func (i *ImageTable) CreateImageTable() error {
 		location TEXT,
 		width INT NOT NULL,
 		height INT NOT NULL,
+		thumbhash TEXT,
 	    created_at DATETIME,
 		uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	) WITHOUT ROWID;`)
@@ -67,13 +68,14 @@ func (i *ImageTable) CreateImageTable() error {
 func (i *ImageTable) Save(img Image) error {
 	_, err := i.DB.Exec(`
 		INSERT INTO image
-		(id, mime_type, location, width, height, created_at)
-		VALUES (?,?,?,?,?,?);`,
+		(id, mime_type, location, width, height, thumbhash, created_at)
+		VALUES (?,?,?,?,?,?,?);`,
 		img.ID,
 		img.MimeType,
 		img.Location,
 		img.Width,
 		img.Height,
+		img.ThumbHash,
 		img.CreatedAt,
 	)
 
@@ -90,7 +92,7 @@ func (i *ImageTable) GetByID(id string) (Image, error) {
 }
 
 func (i *ImageTable) Get() ([]Image, error) {
-	rows, err := i.DB.Query("SELECT * FROM image;")
+	rows, err := i.DB.Query("SELECT * FROM image ORDER BY created_at;")
 	if err != nil {
 		return []Image{}, nil
 	}
@@ -107,13 +109,40 @@ func (i *ImageTable) Get() ([]Image, error) {
 	return imgs, nil
 }
 
+// GetPrev returns the Image previous to the one pointed to by id
+// when ordered by Created time
+func (i ImageTable) GetPrev(id string) (Image, error) {
+	row := i.DB.QueryRow(`SELECT * FROM image
+		WHERE created_at < (
+			SELECT created_at FROM image WHERE id = (?)
+		) ORDER BY created_at DESC LIMIT 1;`, id)
+
+	if err := row.Err(); err != nil {
+		return Image{}, fmt.Errorf("could not get previous row from %s: %w", id, err)
+	}
+
+	return i.scanImageRow(row)
+}
+
+func (i *ImageTable) GetNext(id string) (Image, error) {
+	row := i.DB.QueryRow(`SELECT * FROM image WHERE created_at > (
+    SELECT created_at FROM image WHERE id = (?)
+) ORDER BY created_at ASC LIMIT 1;`, id)
+
+	if err := row.Err(); err != nil {
+		return Image{}, fmt.Errorf("could not get previous row from %s: %w", id, err)
+	}
+
+	return i.scanImageRow(row)
+}
+
 type scanner interface {
 	Scan(a ...any) error
 }
 
 func (i *ImageTable) scanImageRow(s scanner) (Image, error) {
 	img := Image{}
-	err := s.Scan(&img.ID, &img.MimeType, &img.Location, &img.Width, &img.Height, &img.CreatedAt, &img.UploadedAt)
+	err := s.Scan(&img.ID, &img.MimeType, &img.Location, &img.Width, &img.Height, &img.ThumbHash, &img.CreatedAt, &img.UploadedAt)
 	if err != nil {
 		return Image{}, fmt.Errorf("could not scan image row: %w", err)
 	}
@@ -153,6 +182,7 @@ type Image struct {
 	Location   string
 	Width      int
 	Height     int
+	ThumbHash  string
 	CreatedAt  time.Time
 	UploadedAt time.Time
 }

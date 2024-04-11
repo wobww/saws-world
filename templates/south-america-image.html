@@ -1,0 +1,109 @@
+{{ block "south-america-image" .}}
+<html style="height: 100%">
+    <head>
+        <meta name="viewport" content="width=device-width, minimum-scale=0.1" />
+        <title>{{.Title}}</title>
+        <script
+            src="https://unpkg.com/htmx.org@1.9.11"
+            integrity="sha384-0gxUXCCR8yv9FM2b+U3FDbsKthCI66oH5IA9fHppQq9DDMHuMauqq1ZHBpJxQ0J0"
+            crossorigin="anonymous"
+        ></script>
+
+        <style type="text/css">
+            a {
+                color: white;
+                padding: 5px 5px 6px 5px;
+                z-index: 10;
+                font-size: 20px;
+                text-decoration: underline;
+                font-family: "Franklin Gothic Medium", "Arial Narrow", Arial,
+                    sans-serif;
+            }
+            a:hover {
+                text-decoration-style: wavy;
+            }
+
+            body {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 100%;
+                background-color: rgb(14, 14, 14);
+                margin: 0px 2rem;
+                gap: 10px;
+            }
+
+            .image-container {
+                position: relative;
+                max-height: 90vh;
+                width: auto;
+                -webkit-user-select: none;
+                margin: auto;
+                background-color: hsl(0, 0%, 90%);
+                transition: background-color 300ms;
+            }
+
+            .image-container > img {
+                position: absolute;
+                top: 0;
+                right: 0;
+                opacity: 0;
+                transition: opacity ease-out 0.3s 0s;
+            }
+
+            .back {
+                position: absolute;
+                top: 2rem;
+                left: 2rem;
+            }
+        </style>
+    </head>
+    <body>
+        <a class="back" href="/south-america">Back</a>
+        {{ if .PrevURL}}
+        <a hx-boost="true" hx-trigger="keyup[left]" href="{{.PrevURL}}"
+            >Previous</a
+        >
+        {{ end }}
+        <div class="image-container">
+            <img
+                data-thumbhash="{{.ThumbHash}}"
+                src="{{ .ImageURL }}"
+                width="{{ .Width }}"
+                height="{{ .Height }}"
+            />
+        </div>
+        <script type="module">
+            import * as Thumbhash from "/static/thumbhash.js";
+
+            const container = document.querySelector(".image-container");
+            const img = document.querySelector("img");
+
+            const bytes = atob(img.dataset.thumbhash);
+            const hash = new Uint8Array(bytes.length);
+            for (let i = 0; i < bytes.length; i++) {
+                hash[i] = bytes.charCodeAt(i);
+            }
+            const { w, h, rgba } = Thumbhash.thumbHashToRGBA(hash);
+
+            const canvas = document.createElement("canvas");
+            const c = canvas.getContext("2d");
+            const pixels = c.createImageData(w, h);
+            canvas.width = w;
+            canvas.height = h;
+            pixels.data.set(rgba);
+            c.putImageData(pixels, 0, 0);
+
+            canvas.style.height = img.height + "px";
+            canvas.style.width = img.width + "px";
+
+            container.prepend(canvas);
+            img.setAttribute("style", "opacity:1;");
+        </script>
+
+        {{ if .NextURL }}
+        <a hx-boost="true" href="{{.NextURL}}">Next</a>
+        {{ end }}
+    </body>
+</html>
+{{ end }}

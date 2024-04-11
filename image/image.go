@@ -3,6 +3,7 @@ package image
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"image"
 	_ "image/jpeg"
@@ -11,8 +12,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
-	"github.com/pkg/errors"
+	"github.com/galdor/go-thumbhash"
+	"github.com/rwcarlsen/goexif/exif"
 )
 
 func NewImageFileStore(root string) (ImageFileStore, error) {
@@ -33,11 +36,13 @@ type ImageFileStore struct {
 }
 
 type Image struct {
-	ID       string
-	FileName string
-	MimeType string
-	Width    int
-	Height   int
+	ID        string
+	FileName  string
+	MimeType  string
+	Width     int
+	Height    int
+	ThumbHash string
+	Created   time.Time
 }
 
 func (s ImageFileStore) Save(file io.Reader) (Image, error) {
@@ -48,15 +53,32 @@ func (s ImageFileStore) Save(file io.Reader) (Image, error) {
 
 	tee := io.TeeReader(file, mw)
 
-	conf, imgType, err := image.DecodeConfig(tee)
+	img, imgType, err := image.Decode(tee)
 	if err != nil {
 		return Image{}, fmt.Errorf("could not decode image config: %w", err)
 	}
 
 	_, err = io.Copy(mw, file)
 	if err != nil {
-		return Image{}, errors.Wrap(err, "could not save image")
+		return Image{}, fmt.Errorf("could not save image file: %w", err)
 	}
+
+	imgCreated := time.Unix(0, 0)
+	if imgType == "jpeg" {
+		exifBuf := bytes.NewBuffer(fileBuf.Bytes())
+		e, err := exif.Decode(exifBuf)
+		if err == nil && e != nil {
+			imgCreated, err = e.DateTime()
+			if err != nil {
+				fmt.Printf("could not get exif date time: %s\n", err.Error())
+			}
+		} else {
+			fmt.Printf("could not get exif: %s\n", err.Error())
+		}
+	}
+
+	thumbhash := thumbhash.EncodeImage(img)
+	thumbhashStr := base64.StdEncoding.EncodeToString(thumbhash)
 
 	id := fmt.Sprintf("%x", h.Sum(nil))[:12]
 
@@ -64,22 +86,24 @@ func (s ImageFileStore) Save(file io.Reader) (Image, error) {
 
 	dst, err := os.Create(filepath.Join(s.dir, fileName))
 	if err != nil {
-		return Image{}, errors.Wrap(err, "could not save image")
+		return Image{}, fmt.Errorf("could not save image: %w", err)
 	}
 
 	defer dst.Close()
 
 	_, err = io.Copy(dst, fileBuf)
 	if err != nil {
-		return Image{}, errors.Wrap(err, "could not save image")
+		return Image{}, fmt.Errorf("could not save image: %w", err)
 	}
 
 	return Image{
-		ID:       id,
-		FileName: fileName,
-		MimeType: "image/" + imgType,
-		Width:    conf.Width,
-		Height:   conf.Height,
+		ID:        id,
+		FileName:  fileName,
+		MimeType:  "image/" + imgType,
+		Width:     img.Bounds().Dx(),
+		Height:    img.Bounds().Dy(),
+		Created:   imgCreated,
+		ThumbHash: thumbhashStr,
 	}, nil
 }
 

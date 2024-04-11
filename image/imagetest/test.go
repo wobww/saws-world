@@ -11,23 +11,28 @@ import (
 	"github.com/wobwainwwight/sa-photos/image"
 )
 
-//go:embed fish.jpg plane.png
+//go:embed fish.jpg plane.png new-york.jpeg
 var f embed.FS
 
 // FishJPEG returns the test jpeg image of a fish
 func FishJPEG() fs.File {
-	imageFile, err := f.Open("fish.jpg")
-	if err != nil {
-		panic(fmt.Sprint("could not get fish jpeg ", err.Error()))
-	}
-	return imageFile
+	return mustOpen("fish.jpg")
+}
+
+// NYJPEG return test jpeg image of New York
+func NYJPEG() fs.File {
+	return mustOpen("new-york.jpeg")
 }
 
 // PlanePNG returns the test jpeg image of a fish
 func PlanePNG() fs.File {
-	imageFile, err := f.Open("plane.png")
+	return mustOpen("plane.png")
+}
+
+func mustOpen(name string) fs.File {
+	imageFile, err := f.Open(name)
 	if err != nil {
-		panic(fmt.Sprint("could not get fish png ", err.Error()))
+		panic(fmt.Sprintf("could not open file %s: %s", name, err.Error()))
 	}
 	return imageFile
 }
