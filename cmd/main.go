@@ -62,7 +62,8 @@ func main() {
 		}
 
 		opts := db.GetOpts{}
-		if r.URL.Query().Get("order") == "latest" {
+		order := r.URL.Query().Get("order")
+		if order == "latest" {
 			opts.OrderDirection = db.DESC
 		}
 		imgs, err := table.Get(opts)
@@ -82,12 +83,19 @@ func main() {
 		}
 
 		type imageData struct {
-			Title  string
-			Images []imageListItem
+			Title   string
+			OrderBy string
+			Images  []imageListItem
 		}
 
 		imgData := imageData{
 			Title: "South America 2023/24!",
+		}
+
+		if order == "latest" {
+			imgData.OrderBy = "latest"
+		} else {
+			imgData.OrderBy = "oldest"
 		}
 
 		imgData.Images = make([]imageListItem, len(imgs))

@@ -8,7 +8,6 @@
             integrity="sha384-0gxUXCCR8yv9FM2b+U3FDbsKthCI66oH5IA9fHppQq9DDMHuMauqq1ZHBpJxQ0J0"
             crossorigin="anonymous"
         ></script>
-
         <style type="text/css">
             a {
                 color: white;
@@ -61,7 +60,11 @@
     <body>
         <a class="back" href="/south-america">Back</a>
         {{ if .PrevURL}}
-        <a hx-boost="true" hx-trigger="keyup[left]" href="{{.PrevURL}}"
+
+        <a
+            hx-boost="true"
+            hx-trigger="keyup[key==='ArrowLeft'] from:body"
+            href="{{.PrevURL}}"
             >Previous</a
         >
         {{ end }}
@@ -102,7 +105,12 @@
         </script>
 
         {{ if .NextURL }}
-        <a hx-boost="true" href="{{.NextURL}}">Next</a>
+        <a
+            hx-boost="true"
+            href="{{.NextURL}}"
+            hx-trigger="keyup[key==='ArrowRight'] from:body"
+            >Next</a
+        >
         {{ end }}
     </body>
 </html>

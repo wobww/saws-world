@@ -10,28 +10,78 @@
             integrity="sha384-0gxUXCCR8yv9FM2b+U3FDbsKthCI66oH5IA9fHppQq9DDMHuMauqq1ZHBpJxQ0J0"
             crossorigin="anonymous"
         ></script>
-        <script src="https://cdn.tailwindcss.com"></script>
+        <style>
+            @import url("https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Raleway:ital,wght@0,100..900;1,100..900&family=Roboto+Mono:ital,wght@0,100..700;1,100..700&display=swap");
+        </style>
+        <link href="/static/output.css" rel="stylesheet" />
         <title>Saws</title>
     </head>
 
-    <body style="background-color: 49 26.8% 92%">
-        <article>
-            <h1 class="text-3xl font-bold underline">{{ .Title }}</h1>
-            {{ block "image-upload-form" . }}
+    <body class="bg-bg-300">
+        <aside
+            class="flex flex-col fixed h-screen gap-5 top-0 left-0 w-80 px-4 py-5 shadow-md"
+        >
+            <a
+                class="text-2xl underline hover:decoration-wavy font-mono text-center"
+                href="/"
+                >saws.world</a
+            >
+            <form class="flex flex-col grow items-stretch">
+                <span class="my-2 font-light text-xl">Order By</span>
+                <div class="flex flex-col px-5">
+                    <label for="order-oldest" class="my-2">
+                        <input
+                            id="order-oldest"
+                            value="oldest"
+                            name="order"
+                            type="radio"
+                            hx-get="/south-america"
+                            hx-push-url="true"
+                            hx-target="body"
+                            {{ if not (eq .OrderBy "latest") }}
+                                checked="true"
+                            {{ end }}
+                        />
+                        <span>Oldest</span>
+                    </label>
+                    <label for="order-latest">
+                        <input
+                            id="order-latest"
+                            value="latest"
+                            name="order"
+                            type="radio"
+                            class="my-2"
+                            hx-get="/south-america"
+                            hx-push-url="true"
+                            hx-target="body"
+                            {{ if eq .OrderBy "latest" }}
+                                checked="true"
+                            {{ end }}
+                        />
+                        <span>Latest</span>
+                    </label>
+                </div>
+            </form>
             <form
                 hx-encoding="multipart/form-data"
                 hx-target="#image-list"
                 hx-put="/south-america/images"
                 hx-swap="afterbegin"
             >
-                <input type="file" name="image" accept="image/*" />
+                <input
+                    class="bg-neutral-300"
+                    type="file"
+                    name="image"
+                    accept="image/*"
+                />
                 <input type="submit" value="upload" />
             </form>
-            {{ end }}
+        </aside>
 
+        <main class="bg-bg-300 ml-80 p-5">
             <ul
                 id="image-list"
-                class="grid gap-3 my-3 mx-3"
+                class="grid gap-3 my-3"
                 style="
                     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
                 "
@@ -50,7 +100,7 @@
                 </li>
                 {{ end }} {{ end }}
             </ul>
-        </article>
+        </main>
     </body>
 </html>
 {{ end }}
