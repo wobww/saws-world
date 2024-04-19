@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	gonanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wobwainwwight/sa-photos/db"
@@ -32,7 +33,6 @@ func TestDB(t *testing.T) {
 		err := table.Save(db.Image{
 			ID:         "image123",
 			MimeType:   "jpg",
-			Location:   "Nicaragua",
 			UploadedAt: time.Now(),
 			CreatedAt:  time.Now(),
 		})
@@ -42,7 +42,6 @@ func TestDB(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, image.ID, "image123")
-		assert.Equal(t, image.Location, "Nicaragua")
 	})
 
 	t.Run("should get list of image rows", func(t *testing.T) {
@@ -52,7 +51,6 @@ func TestDB(t *testing.T) {
 		err := table.Save(db.Image{
 			ID:         "image123",
 			MimeType:   "jpg",
-			Location:   "Nicaragua",
 			UploadedAt: time.Now(),
 			CreatedAt:  time.Now(),
 		})
@@ -61,7 +59,6 @@ func TestDB(t *testing.T) {
 		err = table.Save(db.Image{
 			ID:         "image456",
 			MimeType:   "jpg",
-			Location:   "Nicaragua",
 			UploadedAt: time.Now(),
 			CreatedAt:  time.Now(),
 		})
@@ -81,7 +78,6 @@ func TestDB(t *testing.T) {
 		err := table.Save(db.Image{
 			ID:        "image123",
 			MimeType:  "jpg",
-			Location:  "Nicaragua",
 			CreatedAt: time.Now().Add(-time.Hour),
 		})
 		require.NoError(t, err)
@@ -89,7 +85,6 @@ func TestDB(t *testing.T) {
 		err = table.Save(db.Image{
 			ID:        "image456",
 			MimeType:  "jpg",
-			Location:  "Nicaragua",
 			CreatedAt: time.Now(),
 		})
 		require.NoError(t, err)
@@ -108,6 +103,60 @@ func TestDB(t *testing.T) {
 		assert.Equal(t, "image123", rows[0].ID)
 		assert.Equal(t, "image456", rows[1].ID)
 	})
+
+	t.Run("should get all localities", func(t *testing.T) {
+		table := newTestTable(t)
+		defer table.Close()
+
+		countryLocalities := map[string][]string{
+			"United States": {"New York", "Washington DC", "Los Angeles"},
+			"Wales":         {"Cardiff", "Swansea", "Newport"},
+			"Argentina":     {"San Carlos de Bariloche", "Mendoza"},
+		}
+
+		givenCountriesAndLocalities(t, table, countryLocalities)
+
+		l, err := table.GetLocalities()
+		require.NoError(t, err)
+
+		for k, v := range countryLocalities {
+			assertContainsLocality(t, l, k, v)
+		}
+
+	})
+}
+
+func givenCountriesAndLocalities(t *testing.T, it testTable, countryLocalities map[string][]string) {
+	for country, localities := range countryLocalities {
+		for _, l := range localities {
+			err := it.Save(givenImageInLocale(country, l))
+			require.NoError(t, err)
+		}
+	}
+}
+
+func givenImageInLocale(country, locality string) db.Image {
+	return db.Image{
+		ID:       gonanoid.Must(),
+		Locality: locality,
+		Country:  country,
+	}
+}
+
+func assertContainsLocality(t *testing.T, ll []db.Locality, country string, localities []string) {
+	found := false
+	for _, l := range ll {
+		if l.Country == country {
+			found = true
+
+			for _, lc := range localities {
+				assert.Contains(t, l.Localities, lc)
+			}
+		}
+
+	}
+	assert.Truef(t, found, "country %s not found", country)
+
 }
 
 type testTable struct {

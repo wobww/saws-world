@@ -9,6 +9,7 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
+	"math/big"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/galdor/go-thumbhash"
 	"github.com/rwcarlsen/goexif/exif"
+	"github.com/rwcarlsen/goexif/tiff"
 )
 
 func NewImageFileStore(root string) (ImageFileStore, error) {
@@ -43,6 +45,8 @@ type Image struct {
 	Height    int
 	ThumbHash string
 	Created   time.Time
+	Lat       float64
+	Long      float64
 }
 
 func (s ImageFileStore) Save(file io.Reader) (Image, error) {
@@ -63,18 +67,11 @@ func (s ImageFileStore) Save(file io.Reader) (Image, error) {
 		return Image{}, fmt.Errorf("could not save image file: %w", err)
 	}
 
-	imgCreated := time.Unix(0, 0)
+	var ed exifData
+	var exifErr error
 	if imgType == "jpeg" {
 		exifBuf := bytes.NewBuffer(fileBuf.Bytes())
-		e, err := exif.Decode(exifBuf)
-		if err == nil && e != nil {
-			imgCreated, err = e.DateTime()
-			if err != nil {
-				fmt.Printf("could not get exif date time: %s\n", err.Error())
-			}
-		} else {
-			fmt.Printf("could not get exif: %s\n", err.Error())
-		}
+		ed, exifErr = getExifData(exifBuf)
 	}
 
 	thumbhash := thumbhash.EncodeImage(img)
@@ -96,15 +93,49 @@ func (s ImageFileStore) Save(file io.Reader) (Image, error) {
 		return Image{}, fmt.Errorf("could not save image: %w", err)
 	}
 
+	if exifErr != nil {
+		fmt.Printf("error while getting exif for img %s: %s\n", id, exifErr.Error())
+	}
+
 	return Image{
 		ID:        id,
 		FileName:  fileName,
 		MimeType:  "image/" + imgType,
 		Width:     img.Bounds().Dx(),
 		Height:    img.Bounds().Dy(),
-		Created:   imgCreated,
+		Created:   ed.dateCreated,
 		ThumbHash: thumbhashStr,
+		Lat:       ed.lat,
+		Long:      ed.long,
 	}, nil
+}
+
+type exifData struct {
+	dateCreated time.Time
+	lat         float64
+	long        float64
+}
+
+func getExifData(r io.Reader) (exifData, error) {
+	e, err := exif.Decode(r)
+	if err != nil {
+		return exifData{}, err
+	}
+	if e == nil {
+		return exifData{}, fmt.Errorf("exif is nil")
+	}
+	ed := exifData{
+		dateCreated: time.Unix(0, 0).UTC(),
+	}
+	imgCreated, err := e.DateTime()
+	if err != nil {
+		fmt.Println("could not get created time from exif")
+	} else {
+		fmt.Println("found created time", imgCreated)
+		ed.dateCreated = imgCreated
+	}
+	ed.lat, ed.long, err = GetLatLongFromExif(e)
+	return ed, err
 }
 
 func (s ImageFileStore) Delete(id string) error {
@@ -165,4 +196,64 @@ func ResizeWidth(width, height, targetHeight int) int {
 	x := float64(targetHeight) / float64(height)
 
 	return int(float64(width) * x)
+}
+
+func GetLatLongFromExif(ex *exif.Exif) (float64, float64, error) {
+	latTag, err := ex.Get(exif.GPSLatitude)
+	if err != nil {
+		return 0, 0, fmt.Errorf("could not get lat: %w", err)
+	}
+	latRefTag, err := ex.Get(exif.GPSLatitudeRef)
+	if err != nil {
+		return 0, 0, fmt.Errorf("could not get lat direction: %w", err)
+	}
+	longTag, err := ex.Get(exif.GPSLongitude)
+	if err != nil {
+		return 0, 0, fmt.Errorf("could not get long: %w", err)
+	}
+	longRefTag, err := ex.Get(exif.GPSLongitudeRef)
+	if err != nil {
+		return 0, 0, fmt.Errorf("could not get long direction: %w", err)
+	}
+
+	lat, err := getDecimalDegreeFromTag(latTag, latRefTag)
+	if err != nil {
+		return 0, 0, fmt.Errorf("could not get lat decimal degree: %w", err)
+	}
+
+	long, err := getDecimalDegreeFromTag(longTag, longRefTag)
+	if err != nil {
+		return 0, 0, fmt.Errorf("could not get long decimal degree: %w", err)
+	}
+
+	return lat, long, nil
+}
+
+func getDecimalDegreeFromTag(degreeTag *tiff.Tag, directionTag *tiff.Tag) (float64, error) {
+	rats := make([]big.Rat, 3)
+	for i := 0; i < 3; i++ {
+		r, err := degreeTag.Rat(i)
+		if err != nil {
+			return 0, fmt.Errorf("%w", err)
+		}
+		rats[i] = *r
+	}
+
+	f0, _ := rats[0].Float64()
+	f1, _ := rats[1].Float64()
+	f2, _ := rats[2].Float64()
+
+	f := f0 + f1/60 + f2/3600
+
+	direction, err := directionTag.StringVal()
+	if err != nil {
+		return 0, fmt.Errorf("could not get direction from tag: %w", err)
+	}
+	if direction == "N" || direction == "E" {
+		return f, nil
+	}
+	if direction == "S" || direction == "W" {
+		return -f, nil
+	}
+	return 0, fmt.Errorf("not a valid gps direction: %s", direction)
 }

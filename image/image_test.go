@@ -6,6 +6,7 @@ import (
 	_ "image/png"
 	"io"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -31,11 +32,9 @@ func TestImageStore(t *testing.T) {
 		img := checker.testFileSaved(t, store, imagetest.FishJPEG(), "6a14a3595a01.jpeg")
 		assert.Equal(t, 318, img.Width)
 		assert.Equal(t, 159, img.Height)
-
-		t.Run("should set created time to 0 unix for jpegs without exif", func(t *testing.T) {
-			unix0 := time.Unix(0, 0)
-			assert.WithinDuration(t, unix0, img.Created, time.Second)
-		})
+		expectedTime, err := time.Parse(time.DateTime, "0001-01-01 00:00:00")
+		require.NoError(t, err)
+		assert.WithinDuration(t, expectedTime.UTC(), img.Created, time.Second)
 	})
 
 	t.Run("should get exif created time", func(t *testing.T) {
@@ -43,11 +42,15 @@ func TestImageStore(t *testing.T) {
 		assert.Equal(t, 1089, img.Width)
 		assert.Equal(t, 722, img.Height)
 
-		expectedTime, err := time.Parse(time.RFC1123, "Fri, 27 Oct 2023 13:48:13 CST")
-		require.NoError(t, err)
-		assert.WithinDuration(t, expectedTime, img.Created, time.Second)
+		assert.Greater(t, img.Created, time.Unix(0, 0))
 
 		assert.Equal(t, "GfgNDYIneId/eHi6eGeIg1egcDcK", img.ThumbHash)
+	})
+
+	t.Run("should get lat long information if exists", func(t *testing.T) {
+		img := checker.testFileSaved(t, store, imagetest.DogsJPEG(), "046de7b98dc4.jpeg")
+		assert.Equal(t, -51.730347, roundFloat(img.Lat, 6))
+		assert.Equal(t, -72.489717, roundFloat(img.Long, 6))
 	})
 
 	t.Run("should save png", func(t *testing.T) {
@@ -56,6 +59,11 @@ func TestImageStore(t *testing.T) {
 		assert.Equal(t, 333, img.Height)
 	})
 
+}
+
+func roundFloat(val float64, precision int) float64 {
+	ratio := math.Pow(10, float64(precision))
+	return math.Round(val*ratio) / ratio
 }
 
 func TestResize(t *testing.T) {

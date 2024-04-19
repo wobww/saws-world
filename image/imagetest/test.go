@@ -11,7 +11,7 @@ import (
 	"github.com/wobwainwwight/sa-photos/image"
 )
 
-//go:embed fish.jpg plane.png new-york.jpeg
+//go:embed dogs.jpg fish.jpg plane.png new-york.jpeg
 var f embed.FS
 
 // FishJPEG returns the test jpeg image of a fish
@@ -27,6 +27,11 @@ func NYJPEG() fs.File {
 // PlanePNG returns the test jpeg image of a fish
 func PlanePNG() fs.File {
 	return mustOpen("plane.png")
+}
+
+// DogsJPEG returns test jpeg image of dogs
+func DogsJPEG() fs.File {
+	return mustOpen("dogs.jpg")
 }
 
 func mustOpen(name string) fs.File {

@@ -26,7 +26,7 @@
                 href="/"
                 >saws.world</a
             >
-            <form class="flex flex-col grow items-stretch">
+            <form class="flex flex-col items-stretch">
                 <span class="my-2 font-light text-xl">Order By</span>
                 <div class="flex flex-col px-5">
                     <label for="order-oldest" class="my-2">
@@ -38,9 +38,7 @@
                             hx-get="/south-america"
                             hx-push-url="true"
                             hx-target="body"
-                            {{ if not (eq .OrderBy "latest") }}
-                                checked="true"
-                            {{ end }}
+                            {{ if not (eq .OrderBy "latest") }}checked="true"{{ end }}
                         />
                         <span>Oldest</span>
                     </label>
@@ -62,7 +60,46 @@
                     </label>
                 </div>
             </form>
-            <form
+            <form id="countryFilter" class="flex flex-col grow items-stretch">
+                <span class="my-2 font-light text-xl">Countries</span>
+                <div class="flex flex-col px-5">
+                    {{ range $i, $country := .CountryFilters }}
+                    <label for="{{$country.Value}}" class="my-2">
+                        <input
+                            type="checkbox"
+                            id="{{$country.Value}}"
+                            value="{{$country.Value}}"
+                            name="countries"
+                            hx-get="/south-america"
+                            hx-push-url="true"
+                            hx-target="body"
+                            {{ if $country.Checked }}
+                            checked="true"
+                            {{ end}}
+                        />
+                        <span>{{$country.Display}}</span>
+                    </label>
+                    {{ end}}
+                </div>
+            </form>
+            <script>
+                document.body.addEventListener("htmx:configRequest", (e) => {
+                  // add all the checked countries to the country paramater
+                  const countries = []
+                  const checkboxes = document.querySelectorAll("#countryFilter input")
+                  checkboxes.forEach(c => {
+                    if (c.checked) {
+                      countries.push(c.value)
+                    }
+                  })
+
+                  if (countries.length > 0) {
+                    e.detail.parameters.countries = countries.join()
+                  }
+
+                })
+            </script>
+            <!-- <form
                 hx-encoding="multipart/form-data"
                 hx-target="#image-list"
                 hx-put="/south-america/images"
@@ -75,7 +112,7 @@
                     accept="image/*"
                 />
                 <input type="submit" value="upload" />
-            </form>
+            </form> -->
         </aside>
 
         <main class="bg-bg-300 ml-80 p-5">

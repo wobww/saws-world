@@ -8,6 +8,7 @@
             integrity="sha384-0gxUXCCR8yv9FM2b+U3FDbsKthCI66oH5IA9fHppQq9DDMHuMauqq1ZHBpJxQ0J0"
             crossorigin="anonymous"
         ></script>
+        <link href="/static/output.css" rel="stylesheet" />
         <style type="text/css">
             a {
                 color: white;
@@ -18,58 +19,30 @@
                 font-family: "Franklin Gothic Medium", "Arial Narrow", Arial,
                     sans-serif;
             }
-            a:hover {
-                text-decoration-style: wavy;
-            }
 
             body {
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                height: 100%;
                 background-color: rgb(14, 14, 14);
-                margin: 0px 2rem;
-                gap: 10px;
-            }
-
-            .image-container {
-                position: relative;
-                max-height: 90vh;
-                width: auto;
-                -webkit-user-select: none;
-                margin: auto;
-                background-color: hsl(0, 0%, 90%);
-                transition: background-color 300ms;
-            }
-
-            .image-container > img {
-                position: absolute;
-                top: 0;
-                right: 0;
-                opacity: 0;
-                transition: opacity ease-out 0.3s 0s;
-            }
-
-            .back {
-                position: absolute;
-                top: 2rem;
-                left: 2rem;
             }
         </style>
     </head>
-    <body>
-        <a class="back" href="/south-america">Back</a>
-        {{ if .PrevURL}}
+    <body class="flex items-center justify-center h-full my-5 mx-4 gap-10">
+        <a class="fixed top-3 left-3" href="/south-america">Back</a>
 
+        {{ if .PrevURL}}
         <a
+            class="hover:decoration-wavy"
             hx-boost="true"
             hx-trigger="keyup[key==='ArrowLeft'] from:body"
             href="{{.PrevURL}}"
             >Previous</a
         >
         {{ end }}
-        <div class="image-container">
+
+        <div
+            class="image-container grow flex justify-center max-h-[40rem] max-w-7xl items-center"
+        >
             <img
+                class="max-h-full max-w-full transition-opacity"
                 data-thumbhash="{{.ThumbHash}}"
                 src="{{ .ImageURL }}"
                 width="{{ .Width }}"
@@ -100,7 +73,7 @@
             canvas.style.height = img.height + "px";
             canvas.style.width = img.width + "px";
 
-            container.prepend(canvas);
+            // container.prepend(canvas);
             img.setAttribute("style", "opacity:1;");
         </script>
 

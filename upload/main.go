@@ -24,7 +24,7 @@ func main() {
 			fmt.Println(err.Error())
 		}
 	} else {
-		fmt.Println("not dir")
+		uploadFile(os.Args[1])
 	}
 }
 
@@ -57,5 +57,19 @@ func uploadImagesInDir(dir string) error {
 		}
 
 	}
+	return nil
+}
+
+func uploadFile(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	fmt.Println("uploading", path)
+	resp, err := http.Post("http://localhost:8080/images", "image/jpeg", f)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("posted file %s: %d\n", path, resp.StatusCode)
 	return nil
 }

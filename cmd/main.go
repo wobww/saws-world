@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -9,18 +10,20 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/wobwainwwight/sa-photos/db"
 	"github.com/wobwainwwight/sa-photos/image"
 	"github.com/wobwainwwight/sa-photos/templates"
-
-	"github.com/pkg/errors"
+	"googlemaps.github.io/maps"
 )
 
 var imageDir = filepath.Join("saws_world_data", "image_uploads")
 var dsn = "file:saws_world_data/saws.sqlite?_journal=WAL"
+var apiKey = os.Getenv("MAPS_KEY")
 
 func main() {
 	appTemplates, err := templates.GetTemplates()
@@ -42,6 +45,18 @@ func main() {
 	}
 	defer table.Close()
 
+	client, err := maps.NewClient(maps.WithAPIKey(apiKey))
+	if err != nil {
+		log.Fatalf("could not create maps client: %s", err.Error())
+		return
+	}
+
+	imgSaver := imageSaver{
+		ifs:   &is,
+		table: table,
+		m:     client,
+	}
+
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
@@ -55,13 +70,22 @@ func main() {
 	})
 
 	mux.HandleFunc("GET /south-america", func(w http.ResponseWriter, r *http.Request) {
+		log.Println(r.URL.String())
+		countriesParam := r.URL.Query().Get("countries")
+		log.Println("countries", countriesParam)
+
+		countries := strings.Split(countriesParam, ",")
+		log.Println("countries", countries)
+
 		tmpl := appTemplates.Lookup(templates.SouthAmerica)
 		if tmpl == nil {
 			log.Printf("%s template not found\n", templates.SouthAmerica)
 			return
 		}
 
-		opts := db.GetOpts{}
+		opts := db.GetOpts{
+			Countries: countries,
+		}
 		order := r.URL.Query().Get("order")
 		if order == "latest" {
 			opts.OrderDirection = db.DESC
@@ -82,10 +106,17 @@ func main() {
 			TranslateY int
 		}
 
+		type countryFilter struct {
+			Value   string
+			Display string
+			Checked bool
+		}
+
 		type imageData struct {
-			Title   string
-			OrderBy string
-			Images  []imageListItem
+			Title          string
+			OrderBy        string
+			CountryFilters []countryFilter
+			Images         []imageListItem
 		}
 
 		imgData := imageData{
@@ -117,6 +148,24 @@ func main() {
 				ImageURL:   fmt.Sprintf("/images/%s?w=%d&h=%d", img.ID, w, targetHeight),
 			}
 		}
+
+		countryFilters := []countryFilter{
+			{"United States", "United States 🇺🇸", false},
+			{"Chile", "Chile 🇨🇱", false},
+			{"Argentina", "Argentina 🇦🇷", false},
+			{"Bolivia", "Bolivia 🇧🇴", false},
+			{"Peru", "Peru 🇵🇪", false},
+			{"Colombia", "Colombia 🇨🇴", false},
+			{"Costa Rica", "Costa Rica 🇨🇷", false},
+			{"Nicaragua", "Nicaragua 🇳🇮", false},
+		}
+		for i, c := range countryFilters {
+			if strings.Contains(countriesParam, c.Value) {
+				countryFilters[i].Checked = true
+			}
+		}
+
+		imgData.CountryFilters = countryFilters
 
 		err = tmpl.Execute(w, imgData)
 		if err != nil {
@@ -181,7 +230,6 @@ func main() {
 	})
 
 	mux.HandleFunc("PUT /south-america/images", func(w http.ResponseWriter, r *http.Request) {
-		log.Println("Image file Upload Endpoint Hit")
 		log.Println(r.Method, r.RequestURI)
 
 		// Parse our multipart form, 10 << 20 specifies a maximum
@@ -190,17 +238,18 @@ func main() {
 
 		file, header, err := r.FormFile("image")
 		if err != nil {
-			err = errors.Wrap(err, "error retrieving image")
-			log.Println(err)
+			err = fmt.Errorf("error reading form image: %w", err)
+			log.Println(err.Error())
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		defer file.Close()
 
-		log.Printf("Uploaded File: %+v\n", header.Filename)
-		log.Printf("File Size: %+v\n", header.Size)
-		log.Printf("MIME Header: %+v\n", header.Header)
+		log.Printf("uploaded File: %+v\n", header.Filename)
+		log.Printf("file Size: %+v\n", header.Size)
+		log.Printf("MIME header: %+v\n", header.Header)
 
-		img, err := saveImage(is, table, file)
+		img, err := imgSaver.saveImage(file)
 		if err != nil {
 			log.Print(err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -219,7 +268,7 @@ func main() {
 	mux.HandleFunc("POST /images", func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 
-		img, err := saveImage(is, table, r.Body)
+		img, err := imgSaver.saveImage(r.Body)
 		if err != nil {
 			log.Print(err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -292,38 +341,91 @@ func main() {
 	}()
 
 	sig := <-signalCh
-	log.Printf("Received signal: %v\n", sig)
+	log.Printf("received signal: %v\n", sig)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatalf("Server shutdown failed: %v\n", err)
+		log.Fatalf("server shutdown failed: %v\n", err)
 	}
 
-	log.Println("Server shutdown gracefully")
+	log.Println("shutting down")
 }
 
-func saveImage(ifs image.ImageFileStore, table *db.ImageTable, imageFile io.Reader) (image.Image, error) {
-	img, err := ifs.Save(imageFile)
+type imageSaver struct {
+	ifs   *image.ImageFileStore
+	table *db.ImageTable
+	m     *maps.Client
+}
+
+func (is *imageSaver) saveImage(imageFile io.Reader) (image.Image, error) {
+	img, err := is.ifs.Save(imageFile)
 	if err != nil {
 		err = fmt.Errorf("could not save image file: %w", err)
 		return image.Image{}, err
 	}
 
-	err = table.Save(db.Image{
+	dbImg := db.Image{
 		ID:         img.ID,
 		MimeType:   img.MimeType,
-		Location:   "",
 		Width:      img.Width,
 		Height:     img.Height,
 		ThumbHash:  img.ThumbHash,
+		Lat:        img.Lat,
+		Long:       img.Long,
 		UploadedAt: time.Now(),
 		CreatedAt:  img.Created,
-	})
+	}
+
+	if img.Lat != 0 && img.Long != 0 {
+		res, err := is.m.Geocode(context.Background(), &maps.GeocodingRequest{
+			LatLng: &maps.LatLng{Lat: img.Lat, Lng: img.Long},
+			ResultType: []string{
+				"locality",
+			},
+		})
+		if err != nil {
+			log.Printf("could not geocode from %.6f, %.6f: %s\n", img.Lat, img.Long, err.Error())
+		} else if len(res) == 0 {
+			log.Printf("no results for geocode from %.6f, %.6f", img.Lat, img.Long)
+		} else {
+			dbImg.Locality, dbImg.Country, err = getLocalityAndCountry(res[0])
+			if err != nil {
+				log.Println(err.Error())
+			}
+		}
+	}
+
+	err = is.table.Save(dbImg)
 	if err != nil {
 		err = fmt.Errorf("could not save image %s to table: %w", img.ID, err)
 		return image.Image{}, err
 	}
 	return img, nil
+}
+
+func getLocalityAndCountry(res maps.GeocodingResult) (string, string, error) {
+	locality, country := "", ""
+	for _, addr := range res.AddressComponents {
+		if slices.Contains(addr.Types, "locality") {
+			locality = addr.LongName
+			continue
+		}
+		if slices.Contains(addr.Types, "country") {
+			country = addr.LongName
+			continue
+		}
+	}
+
+	var err error
+	if len(locality) == 0 && len(country) == 0 {
+		err = errors.New("could not get locality or country from google geocode")
+	} else if len(locality) == 0 {
+		err = fmt.Errorf("could get country (%s) but not locality from google geocode", country)
+	} else if len(country) == 0 {
+		err = fmt.Errorf("could get locality (%s) but not country from google geocode", locality)
+	}
+
+	return locality, country, err
 }

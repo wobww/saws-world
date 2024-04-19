@@ -55,10 +55,13 @@ func (i *ImageTable) CreateImageTable() error {
 	_, err := i.DB.Exec(`CREATE TABLE image (
 	    id TEXT PRIMARY KEY,
 	    mime_type TEXT NOT NULL,
-		location TEXT,
 		width INT NOT NULL,
 		height INT NOT NULL,
 		thumbhash TEXT,
+		lat REAL,
+		long REAL,
+		locality STRING,
+		country STRING,
 	    created_at DATETIME,
 		uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	) WITHOUT ROWID;`)
@@ -68,14 +71,17 @@ func (i *ImageTable) CreateImageTable() error {
 func (i *ImageTable) Save(img Image) error {
 	_, err := i.DB.Exec(`
 		INSERT INTO image
-		(id, mime_type, location, width, height, thumbhash, created_at)
-		VALUES (?,?,?,?,?,?,?);`,
+		(id, mime_type, width, height, thumbhash, lat, long, locality, country, created_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?);`,
 		img.ID,
 		img.MimeType,
-		img.Location,
 		img.Width,
 		img.Height,
 		img.ThumbHash,
+		img.Lat,
+		img.Long,
+		img.Locality,
+		img.Country,
 		img.CreatedAt,
 	)
 
@@ -98,26 +104,61 @@ const DESC = OrderDirection("DESC")
 
 type GetOpts struct {
 	OrderDirection OrderDirection
+	Countries      []string
 }
 
 func (i *ImageTable) Get(opts ...GetOpts) ([]Image, error) {
 	direction := ASC
-	if len(opts) > 0 && len(opts[0].OrderDirection) != 0 {
+	countries := []any{}
+
+	if len(opts) > 0 {
 		// ignore other opts
-		direction = opts[0].OrderDirection
-	}
-	fmt.Println(direction)
+		opt := opts[0]
 
-	var rows *sql.Rows
-	var err error
+		if len(opt.OrderDirection) != 0 {
+			direction = opt.OrderDirection
+		}
+
+		if len(opt.Countries) > 0 {
+			any := make([]any, len(opt.Countries))
+			for i := range opt.Countries {
+				any[i] = opt.Countries[i]
+			}
+
+			countries = any
+		}
+	}
+
+	sb := strings.Builder{}
+	sb.WriteString("SELECT * FROM image")
+	if len(countries) > 0 {
+		sb.WriteString(" WHERE")
+
+		for i := range countries {
+			sb.WriteString(" country = (?)")
+
+			if i < len(countries)-1 {
+				sb.WriteString(" OR ")
+			}
+		}
+	}
+
+	sb.WriteString(" ORDER BY created_at")
+
 	if direction == ASC {
-		rows, err = i.getASC()
+		sb.WriteString(" ASC")
 	} else {
-		rows, err = i.getDESC()
+		sb.WriteString(" DESC")
 	}
 
+	sb.WriteString(";")
+
+	q := sb.String()
+	fmt.Println(q)
+
+	rows, err := i.DB.Query(q, countries...)
 	if err != nil {
-		return []Image{}, nil
+		return []Image{}, err
 	}
 	defer rows.Close()
 
@@ -173,7 +214,19 @@ type scanner interface {
 
 func (i *ImageTable) scanImageRow(s scanner) (Image, error) {
 	img := Image{}
-	err := s.Scan(&img.ID, &img.MimeType, &img.Location, &img.Width, &img.Height, &img.ThumbHash, &img.CreatedAt, &img.UploadedAt)
+	err := s.Scan(
+		&img.ID,
+		&img.MimeType,
+		&img.Width,
+		&img.Height,
+		&img.ThumbHash,
+		&img.Lat,
+		&img.Long,
+		&img.Locality,
+		&img.Country,
+		&img.CreatedAt,
+		&img.UploadedAt,
+	)
 	if err != nil {
 		return Image{}, fmt.Errorf("could not scan image row: %w", err)
 	}
@@ -186,6 +239,44 @@ func (i *ImageTable) Delete(id string) error {
 		return fmt.Errorf("could not remove image %s : %w", id, err)
 	}
 	return nil
+}
+
+type Locality struct {
+	Country    string
+	Localities []string
+}
+
+func (i *ImageTable) GetLocalities() ([]Locality, error) {
+	res, err := i.DB.Query("SELECT country, locality FROM image WHERE country IS NOT \"\";")
+	if err != nil {
+		return nil, fmt.Errorf("could not get localities: %w", err)
+	}
+
+	var countryLocality = make(map[string][]string)
+	for res.Next() {
+		country, locality := "", ""
+		err = res.Scan(&country, &locality)
+		if err != nil {
+			return nil, fmt.Errorf("could not scan country and locality: %w", err)
+		}
+
+		_, ok := countryLocality[country]
+		if !ok {
+			countryLocality[country] = []string{locality}
+		} else {
+			countryLocality[country] = append(countryLocality[country], locality)
+		}
+	}
+
+	localities := []Locality{}
+	for k, v := range countryLocality {
+		localities = append(localities, Locality{
+			Country:    k,
+			Localities: v,
+		})
+	}
+
+	return localities, nil
 }
 
 func (i *ImageTable) Close() error {
@@ -210,10 +301,13 @@ type TableInfo struct {
 type Image struct {
 	ID         string
 	MimeType   string
-	Location   string
 	Width      int
 	Height     int
 	ThumbHash  string
 	CreatedAt  time.Time
 	UploadedAt time.Time
+	Lat        float64
+	Long       float64
+	Locality   string
+	Country    string
 }
