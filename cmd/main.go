@@ -57,11 +57,13 @@ func main() {
 	defer table.Close()
 
 	var client *maps.Client
-	if !apiKeyOK {
+	if apiKeyOK {
 		client, err = maps.NewClient(maps.WithAPIKey(apiKey))
 		if err != nil {
-			log.Printf("could not create maps client: %s\n", err.Error())
+			log.Printf("could not initialise maps client: %s\n", err.Error())
 			client = nil
+		} else {
+			log.Println("maps client initialised")
 		}
 	}
 
