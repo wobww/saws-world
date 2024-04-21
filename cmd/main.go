@@ -21,11 +21,22 @@ import (
 	"googlemaps.github.io/maps"
 )
 
-var imageDir = filepath.Join("saws_world_data", "image_uploads")
-var dsn = "file:saws_world_data/saws.sqlite?_journal=WAL"
-var apiKey = os.Getenv("MAPS_KEY")
-
 func main() {
+	imageDir := filepath.Join("saws_world_data", "image_uploads")
+	dsn := "file:saws_world_data/saws.sqlite?_journal=WAL"
+	apiKey, apiKeyOK := os.LookupEnv("MAPS_KEY")
+	port, portOK := os.LookupEnv("PORT")
+	host, hostOK := os.LookupEnv("HOST")
+
+	if !portOK {
+		port = "8080"
+	}
+	if !hostOK {
+		host = "127.0.0.1"
+	}
+
+	addr := fmt.Sprintf("%s:%s", host, port)
+
 	appTemplates, err := templates.GetTemplates()
 	if err != nil {
 		log.Fatalf("could not get app templates: %s", err.Error())
@@ -45,10 +56,13 @@ func main() {
 	}
 	defer table.Close()
 
-	client, err := maps.NewClient(maps.WithAPIKey(apiKey))
-	if err != nil {
-		log.Fatalf("could not create maps client: %s", err.Error())
-		return
+	var client *maps.Client
+	if !apiKeyOK {
+		client, err = maps.NewClient(maps.WithAPIKey(apiKey))
+		if err != nil {
+			log.Printf("could not create maps client: %s\n", err.Error())
+			client = nil
+		}
 	}
 
 	imgSaver := imageSaver{
@@ -70,12 +84,12 @@ func main() {
 	})
 
 	mux.HandleFunc("GET /south-america", func(w http.ResponseWriter, r *http.Request) {
-		log.Println(r.URL.String())
 		countriesParam := r.URL.Query().Get("countries")
-		log.Println("countries", countriesParam)
 
-		countries := strings.Split(countriesParam, ",")
-		log.Println("countries", countries)
+		var countries []string
+		if len(countriesParam) > 0 {
+			countries = strings.Split(countriesParam, ",")
+		}
 
 		tmpl := appTemplates.Lookup(templates.SouthAmerica)
 		if tmpl == nil {
@@ -283,7 +297,6 @@ func main() {
 
 	mux.HandleFunc("GET /images/{id}", func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		log.Println("GET image", id)
 
 		fileBytes, err := is.ReadFile(id)
 		if err != nil {
@@ -329,11 +342,11 @@ func main() {
 	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
 
 	srv := &http.Server{
-		Addr:    "localhost:8080",
+		Addr:    addr,
 		Handler: mux,
 	}
 	go func() {
-		log.Println("running at localhost:8080")
+		log.Printf("running at %s\n", addr)
 		err = srv.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {
 			log.Fatalf("could not start server: %s", err.Error())
@@ -379,22 +392,29 @@ func (is *imageSaver) saveImage(imageFile io.Reader) (image.Image, error) {
 	}
 
 	if img.Lat != 0 && img.Long != 0 {
-		res, err := is.m.Geocode(context.Background(), &maps.GeocodingRequest{
-			LatLng: &maps.LatLng{Lat: img.Lat, Lng: img.Long},
-			ResultType: []string{
-				"locality",
-			},
-		})
-		if err != nil {
-			log.Printf("could not geocode from %.6f, %.6f: %s\n", img.Lat, img.Long, err.Error())
-		} else if len(res) == 0 {
-			log.Printf("no results for geocode from %.6f, %.6f", img.Lat, img.Long)
-		} else {
-			dbImg.Locality, dbImg.Country, err = getLocalityAndCountry(res[0])
+
+		if is.m != nil {
+			res, err := is.m.Geocode(context.Background(), &maps.GeocodingRequest{
+				LatLng: &maps.LatLng{Lat: img.Lat, Lng: img.Long},
+				ResultType: []string{
+					"locality",
+				},
+			})
 			if err != nil {
-				log.Println(err.Error())
+				log.Printf("could not geocode from %.6f, %.6f: %s\n", img.Lat, img.Long, err.Error())
+			} else if len(res) == 0 {
+				log.Printf("no results for geocode from %.6f, %.6f\n", img.Lat, img.Long)
+			} else {
+				dbImg.Locality, dbImg.Country, err = getLocalityAndCountry(res[0])
+				if err != nil {
+					log.Println(err.Error())
+				}
 			}
+
+		} else {
+			log.Println("maps client not initialised")
 		}
+
 	}
 
 	err = is.table.Save(dbImg)

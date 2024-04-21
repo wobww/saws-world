@@ -154,7 +154,6 @@ func (i *ImageTable) Get(opts ...GetOpts) ([]Image, error) {
 	sb.WriteString(";")
 
 	q := sb.String()
-	fmt.Println(q)
 
 	rows, err := i.DB.Query(q, countries...)
 	if err != nil {
