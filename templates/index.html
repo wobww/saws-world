@@ -5,31 +5,118 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta http-equiv="X-UA-Compatible" content="ie=edge" />
-        <title>Saws</title>
+        <script
+            src="https://unpkg.com/htmx.org@1.9.11"
+            integrity="sha384-0gxUXCCR8yv9FM2b+U3FDbsKthCI66oH5IA9fHppQq9DDMHuMauqq1ZHBpJxQ0J0"
+            crossorigin="anonymous"
+        ></script>
+        <style>
+            @import url("https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Raleway:ital,wght@0,100..900;1,100..900&family=Roboto+Mono:ital,wght@0,100..700;1,100..700&display=swap");
+
+            .sawtooth {
+                stroke-dasharray: 10000;
+                stroke-dashoffset: 10000;
+                animation: draw 30s linear forwards;
+                opacity: 0.8;
+                transition: opacity 1s;
+            }
+
+            @keyframes draw {
+                to {
+                    stroke-dashoffset: 0;
+                }
+            }
+        </style>
+
         <link href="/static/output.css" rel="stylesheet" />
+        <title>saws</title>
     </head>
-    <body class="m-4 p-3">
-        <p class="font-mono text-xl">Welcome to</p>
-        <h1 class="text-9xl">saws.world</h1>
-        <article>
-            <pre>
-            Amidst the verdant fields, a chef's heart beats,
-            Wielding saws, the culinary arts they greet.
-            A symphony of flavors, a dance of taste,
-            Sauces born from passion, never to waste.
 
-            Saws, the Welsh word for sauce, a secret held dear,
-            Transforming humble ingredients, with a flair so clear.
-            A drizzle, a drape, a pool of delight,
-            Elevating dishes to gastronomic height.
+    <body class="bg-bg-300">
+        <aside
+            class="flex flex-col fixed h-screen gap-5 top-0 left-0 w-80 px-4 py-5 shadow-md"
+        >
+            <a
+                class="text-2xl underline hover:decoration-wavy font-mono text-center"
+                href="/"
+                >saws.world</a
+            >
 
-            From velvet demi-glace to vibrant pesto swirls,
-            Saws unveils its magic, the taste buds unfurl.
-            A love letter to the palate, a canvas to savor,
-            Each bite a testament to the chef's ardent labor.
-            </pre>
-        </article>
-        <a href="/south-america">South America Trip</a>
+            <nav class="my-2">
+                <a
+                    href="/south-america"
+                    class="text-lg underline hover:decoration-wavy font-mono text-center"
+                    >South America</a
+                >
+            </nav>
+        </aside>
+
+        <main class="bg-bg-300 ml-80 h-screen">
+            <!-- <label for="period">
+                <span>Period</span>
+                <input min="0" value="1" type="number" id="period" />
+            </label> -->
+            <svg
+                class="h-full w-full"
+                version="1.1"
+                xmlns="http://www.w3.org/2000/svg"
+            >
+                <path
+                    class="sawtooth"
+                    stroke="black"
+                    stroke-width="9"
+                    fill="none"
+                />
+            </svg>
+        </main>
+        <script type="module">
+            import { sawDraw } from "/static/saws.js";
+
+            function rand(min, max) {
+                return min + Math.floor(Math.random() * max);
+            }
+
+            const svg = document.querySelector("svg");
+
+            let ogOpts = {
+                nPaths: 20,
+                strokeWidthFn: () => rand(2, 7),
+                startY: 100,
+                intervalY: 40,
+                width: 3000,
+                heightFn: () => rand(50, 120),
+                periodFn: () => rand(10, 15),
+                restartY: 700,
+            };
+
+            let consOpts = {
+                nPaths: 20,
+                strokeWidth: 3,
+                startY: 80,
+                intervalY: 40,
+                width: 3000,
+                heightFn: () => rand(50, 120),
+                period: 11,
+                restartY: 700,
+                strokeColor: "gray",
+            };
+
+            let consDisc = {
+                n: 20,
+                strokeWidth: 4,
+                startYFn: (i) => 30 + 30 * Math.floor(i / 9),
+                intervalY: 100,
+                width: 3000,
+                height: 60,
+                period: 25,
+                restartY: 800,
+            };
+
+            const opts = [consDisc, ogOpts, consOpts];
+            let i = 0;
+
+            let interval = sawDraw(svg, opts[0]);
+        </script>
     </body>
 </html>
 {{ end }}
