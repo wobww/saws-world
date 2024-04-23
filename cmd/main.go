@@ -25,17 +25,25 @@ func main() {
 	imageDir := filepath.Join("saws_world_data", "image_uploads")
 	dsn := "file:saws_world_data/saws.sqlite?_journal=WAL"
 	apiKey, apiKeyOK := os.LookupEnv("MAPS_KEY")
-	port, portOK := os.LookupEnv("PORT")
-	host, hostOK := os.LookupEnv("HOST")
 
+	port, portOK := os.LookupEnv("PORT")
 	if !portOK {
 		port = "8080"
 	}
+
+	host, hostOK := os.LookupEnv("HOST")
 	if !hostOK {
 		host = "127.0.0.1"
 	}
 
 	addr := fmt.Sprintf("%s:%s", host, port)
+
+	inclIndexEnv, inclIndexOK := os.LookupEnv("SAWS_INDEX")
+	if !inclIndexOK {
+		inclIndexEnv = "0"
+	}
+
+	includeIndexPage := inclIndexEnv == "1"
 
 	appTemplates, err := templates.GetTemplates()
 	if err != nil {
@@ -76,6 +84,11 @@ func main() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
+		if !includeIndexPage {
+			http.Redirect(w, r, "/south-america", http.StatusFound)
+			return
+		}
+
 		tmpl := appTemplates.Lookup(templates.Index)
 		if tmpl == nil {
 			log.Printf("%s template not found\n", templates.Index)
