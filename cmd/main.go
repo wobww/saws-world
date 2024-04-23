@@ -126,28 +126,6 @@ func main() {
 			return
 		}
 
-		type imageListItem struct {
-			Width      int
-			Height     int
-			URL        string
-			ImageURL   string
-			TranslateX int
-			TranslateY int
-		}
-
-		type countryFilter struct {
-			Value   string
-			Display string
-			Checked bool
-		}
-
-		type imageData struct {
-			Title          string
-			OrderBy        string
-			CountryFilters []countryFilter
-			Images         []imageListItem
-		}
-
 		imgData := imageData{
 			Title: "South America 2023/24!",
 		}
@@ -285,12 +263,18 @@ func main() {
 			return
 		}
 
-		imageURL := fmt.Sprintf("/images/%s", img.ID)
-		w.Header().Add("Location", imageURL)
+		i := imageListItem{
+			URL:      fmt.Sprintf("/south-america/images/%s", img.ID),
+			ImageURL: fmt.Sprintf("/images/%s", img.ID),
+			Width:    image.ResizeWidth(img.Width, img.Height, 350),
+			Height:   350,
+		}
+
+		w.Header().Add("Location", i.ImageURL)
 		w.WriteHeader(http.StatusCreated)
 
 		tmpl := appTemplates.Lookup("image-list-item")
-		tmpl.Execute(w, imageURL)
+		tmpl.Execute(w, i)
 
 	})
 
@@ -463,4 +447,26 @@ func getLocalityAndCountry(res maps.GeocodingResult) (string, string, error) {
 	}
 
 	return locality, country, err
+}
+
+type imageListItem struct {
+	Width      int
+	Height     int
+	URL        string
+	ImageURL   string
+	TranslateX int
+	TranslateY int
+}
+
+type countryFilter struct {
+	Value   string
+	Display string
+	Checked bool
+}
+
+type imageData struct {
+	Title          string
+	OrderBy        string
+	CountryFilters []countryFilter
+	Images         []imageListItem
 }
