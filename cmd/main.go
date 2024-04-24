@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -10,12 +9,12 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"slices"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/wobwainwwight/sa-photos/db"
+	"github.com/wobwainwwight/sa-photos/geocode"
 	"github.com/wobwainwwight/sa-photos/image"
 	"github.com/wobwainwwight/sa-photos/templates"
 	"googlemaps.github.io/maps"
@@ -136,25 +135,19 @@ func main() {
 			imgData.OrderBy = "oldest"
 		}
 
-		imgData.Images = make([]imageListItem, len(imgs))
 		targetHeight := 350
+
+		imgItems := make([]imageListItem, len(imgs))
 		for i, img := range imgs {
-			w := image.ResizeWidth(img.Width, img.Height, targetHeight)
-
-			translateX := 0
-			if i != 0 {
-				translateX = imgData.Images[i-1].Width
+			imgItems[i] = imageListItem{
+				Width:    image.ResizeWidth(img.Width, img.Height, targetHeight),
+				Height:   targetHeight,
+				URL:      fmt.Sprintf("/south-america/images/%s", img.ID),
+				ImageURL: fmt.Sprintf("/images/%s?w=%d&h=%d", img.ID, w, targetHeight),
 			}
 
-			imgData.Images[i] = imageListItem{
-				Width:      w,
-				Height:     targetHeight,
-				TranslateX: translateX,
-				TranslateY: 0,
-				URL:        fmt.Sprintf("/south-america/images/%s", img.ID),
-				ImageURL:   fmt.Sprintf("/images/%s?w=%d&h=%d", img.ID, w, targetHeight),
-			}
 		}
+		imgData.Images = imgItems
 
 		countryFilters := []countryFilter{
 			{"United States", "United States 🇺🇸", false},
@@ -344,6 +337,7 @@ func main() {
 		Addr:    addr,
 		Handler: mux,
 	}
+
 	go func() {
 		log.Printf("running at %s\n", addr)
 		err = srv.ListenAndServe()
@@ -395,21 +389,17 @@ func (is *imageSaver) saveImage(imageFile io.Reader) (image.Image, error) {
 		if is.m != nil {
 			res, err := is.m.Geocode(context.Background(), &maps.GeocodingRequest{
 				LatLng: &maps.LatLng{Lat: img.Lat, Lng: img.Long},
-				ResultType: []string{
-					"locality",
-				},
 			})
 			if err != nil {
 				log.Printf("could not geocode from %.6f, %.6f: %s\n", img.Lat, img.Long, err.Error())
 			} else if len(res) == 0 {
 				log.Printf("no results for geocode from %.6f, %.6f\n", img.Lat, img.Long)
 			} else {
-				dbImg.Locality, dbImg.Country, err = getLocalityAndCountry(res[0])
+				dbImg.Locality, dbImg.Country, err = geocode.GetLocalityAndCountry(res)
 				if err != nil {
 					log.Println(err.Error())
 				}
 			}
-
 		} else {
 			log.Println("maps client not initialised")
 		}
@@ -424,38 +414,11 @@ func (is *imageSaver) saveImage(imageFile io.Reader) (image.Image, error) {
 	return img, nil
 }
 
-func getLocalityAndCountry(res maps.GeocodingResult) (string, string, error) {
-	locality, country := "", ""
-	for _, addr := range res.AddressComponents {
-		if slices.Contains(addr.Types, "locality") {
-			locality = addr.LongName
-			continue
-		}
-		if slices.Contains(addr.Types, "country") {
-			country = addr.LongName
-			continue
-		}
-	}
-
-	var err error
-	if len(locality) == 0 && len(country) == 0 {
-		err = errors.New("could not get locality or country from google geocode")
-	} else if len(locality) == 0 {
-		err = fmt.Errorf("could get country (%s) but not locality from google geocode", country)
-	} else if len(country) == 0 {
-		err = fmt.Errorf("could get locality (%s) but not country from google geocode", locality)
-	}
-
-	return locality, country, err
-}
-
 type imageListItem struct {
-	Width      int
-	Height     int
-	URL        string
-	ImageURL   string
-	TranslateX int
-	TranslateY int
+	Width    int
+	Height   int
+	URL      string
+	ImageURL string
 }
 
 type countryFilter struct {

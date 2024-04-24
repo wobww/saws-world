@@ -157,7 +157,7 @@ func (i *ImageTable) Get(opts ...GetOpts) ([]Image, error) {
 
 	rows, err := i.DB.Query(q, countries...)
 	if err != nil {
-		return []Image{}, err
+		return []Image{}, fmt.Errorf("could not get image rows: %w", err)
 	}
 	defer rows.Close()
 

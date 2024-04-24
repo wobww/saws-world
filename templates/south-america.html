@@ -116,27 +116,27 @@
         </aside>
 
         <main class="bg-bg-300 ml-80 p-5">
-            <ul
-                id="image-list"
-                class="grid gap-3 my-3"
-                style="
-                    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-                "
-            >
-                {{ range .Images}} {{ block "image-list-item" .}}
-                <li>
-                    <a href="{{.URL}}">
-                        <figure>
-                            <img
-                                src="{{.ImageURL}}"
-                                width="{{.Width}}"
-                                height="{{.Height}}"
-                            />
-                        </figure>
-                    </a>
-                </li>
-                {{ end }} {{ end }}
-            </ul>
+                <ul
+                    id="image-list"
+                    class="grid gap-3 my-3"
+                    style="
+                        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                    "
+                >
+                    {{ range .Images}} {{ block "image-list-item" .}}
+                    <li>
+                        <a href="{{.URL}}">
+                            <figure>
+                                <img
+                                    src="{{.ImageURL}}"
+                                    width="{{.Width}}"
+                                    height="{{.Height}}"
+                                />
+                            </figure>
+                        </a>
+                    </li>
+                    {{ end }} {{ end }}
+                </ul>
         </main>
     </body>
 </html>

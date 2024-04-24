@@ -1,0 +1,230 @@
+[
+  {
+    "address_components": [
+      {
+        "long_name": "37X82RC5+9X",
+        "short_name": "37X82RC5+9X",
+        "types": ["plus_code"]
+      }
+    ],
+    "formatted_address": "37X82RC5+9X",
+    "geometry": {
+      "bounds": {
+        "northeast": {
+          "lat": -50.979,
+          "lng": -73.19
+        },
+        "southwest": {
+          "lat": -50.979125,
+          "lng": -73.19012499999999
+        }
+      },
+      "location": {
+        "lat": -50.979125,
+        "lng": -73.19004199999999
+      },
+      "location_type": "GEOMETRIC_CENTER",
+      "viewport": {
+        "northeast": {
+          "lat": -50.9777135197085,
+          "lng": -73.1887135197085
+        },
+        "southwest": {
+          "lat": -50.9804114802915,
+          "lng": -73.19141148029151
+        }
+      }
+    },
+    "place_id": "GhIJFtnO91N9ScARc7frpSlMUsA",
+    "plus_code": {
+      "global_code": "37X82RC5+9X"
+    },
+    "types": ["plus_code"]
+  },
+  {
+    "address_components": [
+      {
+        "long_name": "Torres de Paine",
+        "short_name": "Torres de Paine",
+        "types": ["administrative_area_level_3", "political"]
+      },
+      {
+        "long_name": "Última Esperanza",
+        "short_name": "Última Esperanza",
+        "types": ["administrative_area_level_2", "political"]
+      },
+      {
+        "long_name": "Magallanes y la Antártica Chilena",
+        "short_name": "Magallanes y la Antártica Chilena",
+        "types": ["administrative_area_level_1", "political"]
+      },
+      {
+        "long_name": "Chile",
+        "short_name": "CL",
+        "types": ["country", "political"]
+      }
+    ],
+    "formatted_address": "Torres de Paine, Magallanes y la Antártica Chilena, Chile",
+    "geometry": {
+      "bounds": {
+        "northeast": {
+          "lat": -50.6006084,
+          "lng": -72.246066
+        },
+        "southwest": {
+          "lat": -51.5639696,
+          "lng": -73.467804
+        }
+      },
+      "location": {
+        "lat": -51.25334429999999,
+        "lng": -72.35161239999999
+      },
+      "location_type": "APPROXIMATE",
+      "viewport": {
+        "northeast": {
+          "lat": -50.6006084,
+          "lng": -72.246066
+        },
+        "southwest": {
+          "lat": -51.5639696,
+          "lng": -73.467804
+        }
+      }
+    },
+    "place_id": "ChIJmbm3Z8I3pb0RTTJY_vPk2QM",
+    "types": ["administrative_area_level_3", "political"]
+  },
+  {
+    "address_components": [
+      {
+        "long_name": "Última Esperanza",
+        "short_name": "Última Esperanza",
+        "types": ["administrative_area_level_2", "political"]
+      },
+      {
+        "long_name": "Magallanes and Chilean Antarctica",
+        "short_name": "Magallanes and Chilean Antarctica",
+        "types": ["administrative_area_level_1", "political"]
+      },
+      {
+        "long_name": "Chile",
+        "short_name": "CL",
+        "types": ["country", "political"]
+      }
+    ],
+    "formatted_address": "Última Esperanza, Magallanes and Chilean Antarctica, Chile",
+    "geometry": {
+      "bounds": {
+        "northeast": {
+          "lat": -48.5937516,
+          "lng": -71.645888
+        },
+        "southwest": {
+          "lat": -52.8342588,
+          "lng": -75.72820449999999
+        }
+      },
+      "location": {
+        "lat": -50.6336709,
+        "lng": -74.4049294
+      },
+      "location_type": "APPROXIMATE",
+      "viewport": {
+        "northeast": {
+          "lat": -48.5937516,
+          "lng": -71.645888
+        },
+        "southwest": {
+          "lat": -52.8342588,
+          "lng": -75.72820449999999
+        }
+      }
+    },
+    "place_id": "ChIJpz9BiyZWrr0RenzBV36Rml8",
+    "types": ["administrative_area_level_2", "political"]
+  },
+  {
+    "address_components": [
+      {
+        "long_name": "Magallanes and Chilean Antarctica",
+        "short_name": "Magallanes and Chilean Antarctica",
+        "types": ["administrative_area_level_1", "political"]
+      },
+      {
+        "long_name": "Chile",
+        "short_name": "CL",
+        "types": ["country", "political"]
+      }
+    ],
+    "formatted_address": "Magallanes and Chilean Antarctica, Chile",
+    "geometry": {
+      "bounds": {
+        "northeast": {
+          "lat": -48.5937516,
+          "lng": -66.3732571
+        },
+        "southwest": {
+          "lat": -56.60830600000001,
+          "lng": -75.72820449999999
+        }
+      },
+      "location": {
+        "lat": -53.4428344,
+        "lng": -72.1496817
+      },
+      "location_type": "APPROXIMATE",
+      "viewport": {
+        "northeast": {
+          "lat": -48.5937516,
+          "lng": -66.3732571
+        },
+        "southwest": {
+          "lat": -56.60830600000001,
+          "lng": -75.72820449999999
+        }
+      }
+    },
+    "place_id": "ChIJTbM2xJs_UrwRdsqdI0JNjXM",
+    "types": ["administrative_area_level_1", "political"]
+  },
+  {
+    "address_components": [
+      {
+        "long_name": "Chile",
+        "short_name": "CL",
+        "types": ["country", "political"]
+      }
+    ],
+    "formatted_address": "Chile",
+    "geometry": {
+      "bounds": {
+        "northeast": {
+          "lat": -17.4983649,
+          "lng": -66.3327
+        },
+        "southwest": {
+          "lat": -56.6233,
+          "lng": -110.0281
+        }
+      },
+      "location": {
+        "lat": -35.675147,
+        "lng": -71.542969
+      },
+      "location_type": "APPROXIMATE",
+      "viewport": {
+        "northeast": {
+          "lat": -17.4983649,
+          "lng": -66.3327
+        },
+        "southwest": {
+          "lat": -56.6233,
+          "lng": -110.0281
+        }
+      }
+    },
+    "place_id": "ChIJL68lBEHFYpYRHbkCERPhBQU",
+    "types": ["country", "political"]
+  }
+]
