@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"log"
@@ -43,6 +44,13 @@ func main() {
 	}
 
 	includeIndexPage := inclIndexEnv == "1"
+
+	password, passwordOK := os.LookupEnv("SAWS_PASSWORD")
+
+	requirePassword := requirePasswordMiddleware(passwordMiddlewareOpts{
+		enabled:  passwordOK,
+		password: password,
+	})
 
 	appTemplates, err := templates.GetTemplates()
 	if err != nil {
@@ -97,83 +105,84 @@ func main() {
 		tmpl.Execute(w, nil)
 	})
 
-	mux.HandleFunc("GET /south-america", func(w http.ResponseWriter, r *http.Request) {
-		countriesParam := r.URL.Query().Get("countries")
+	mux.Handle("GET /south-america", requirePassword(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			countriesParam := r.URL.Query().Get("countries")
 
-		var countries []string
-		if len(countriesParam) > 0 {
-			countries = strings.Split(countriesParam, ",")
-		}
-
-		tmpl := appTemplates.Lookup(templates.SouthAmerica)
-		if tmpl == nil {
-			log.Printf("%s template not found\n", templates.SouthAmerica)
-			return
-		}
-
-		opts := db.GetOpts{
-			Countries: countries,
-		}
-		order := r.URL.Query().Get("order")
-		if order == "latest" {
-			opts.OrderDirection = db.DESC
-		}
-		imgs, err := table.Get(opts)
-		if err != nil {
-			log.Println(err.Error())
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		imgData := imageData{
-			Title: "South America 2023/24!",
-		}
-
-		if order == "latest" {
-			imgData.OrderBy = "latest"
-		} else {
-			imgData.OrderBy = "oldest"
-		}
-
-		targetHeight := 350
-
-		imgItems := make([]imageListItem, len(imgs))
-		for i, img := range imgs {
-			imgItems[i] = imageListItem{
-				Width:    image.ResizeWidth(img.Width, img.Height, targetHeight),
-				Height:   targetHeight,
-				URL:      fmt.Sprintf("/south-america/images/%s", img.ID),
-				ImageURL: fmt.Sprintf("/images/%s?w=%d&h=%d", img.ID, w, targetHeight),
+			var countries []string
+			if len(countriesParam) > 0 {
+				countries = strings.Split(countriesParam, ",")
 			}
 
-		}
-		imgData.Images = imgItems
-
-		countryFilters := []countryFilter{
-			{"United States", "United States 🇺🇸", false},
-			{"Chile", "Chile 🇨🇱", false},
-			{"Argentina", "Argentina 🇦🇷", false},
-			{"Bolivia", "Bolivia 🇧🇴", false},
-			{"Peru", "Peru 🇵🇪", false},
-			{"Colombia", "Colombia 🇨🇴", false},
-			{"Costa Rica", "Costa Rica 🇨🇷", false},
-			{"Nicaragua", "Nicaragua 🇳🇮", false},
-		}
-		for i, c := range countryFilters {
-			if strings.Contains(countriesParam, c.Value) {
-				countryFilters[i].Checked = true
+			tmpl := appTemplates.Lookup(templates.SouthAmerica)
+			if tmpl == nil {
+				log.Printf("%s template not found\n", templates.SouthAmerica)
+				return
 			}
-		}
 
-		imgData.CountryFilters = countryFilters
+			opts := db.GetOpts{
+				Countries: countries,
+			}
+			order := r.URL.Query().Get("order")
+			if order == "latest" {
+				opts.OrderDirection = db.DESC
+			}
+			imgs, err := table.Get(opts)
+			if err != nil {
+				log.Println(err.Error())
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 
-		err = tmpl.Execute(w, imgData)
-		if err != nil {
-			log.Println(err.Error())
-		}
-	})
+			imgData := imageData{
+				Title: "South America 2023/24!",
+			}
 
-	mux.HandleFunc("GET /south-america/images/{id}", func(w http.ResponseWriter, r *http.Request) {
+			if order == "latest" {
+				imgData.OrderBy = "latest"
+			} else {
+				imgData.OrderBy = "oldest"
+			}
+
+			targetHeight := 350
+
+			imgItems := make([]imageListItem, len(imgs))
+			for i, img := range imgs {
+				imgItems[i] = imageListItem{
+					Width:    image.ResizeWidth(img.Width, img.Height, targetHeight),
+					Height:   targetHeight,
+					URL:      fmt.Sprintf("/south-america/images/%s", img.ID),
+					ImageURL: fmt.Sprintf("/images/%s?w=%d&h=%d", img.ID, w, targetHeight),
+				}
+
+			}
+			imgData.Images = imgItems
+
+			countryFilters := []countryFilter{
+				{"United States", "United States 🇺🇸", false},
+				{"Chile", "Chile 🇨🇱", false},
+				{"Argentina", "Argentina 🇦🇷", false},
+				{"Bolivia", "Bolivia 🇧🇴", false},
+				{"Peru", "Peru 🇵🇪", false},
+				{"Colombia", "Colombia 🇨🇴", false},
+				{"Costa Rica", "Costa Rica 🇨🇷", false},
+				{"Nicaragua", "Nicaragua 🇳🇮", false},
+			}
+			for i, c := range countryFilters {
+				if strings.Contains(countriesParam, c.Value) {
+					countryFilters[i].Checked = true
+				}
+			}
+
+			imgData.CountryFilters = countryFilters
+
+			err = tmpl.Execute(w, imgData)
+			if err != nil {
+				log.Println(err.Error())
+			}
+		})))
+
+	mux.Handle("GET /south-america/images/{id}", requirePassword(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tmpl := appTemplates.Lookup("south-america-image")
 		if tmpl == nil {
 			log.Printf("%s template not found\n", "south-america-image")
@@ -227,9 +236,9 @@ func main() {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-	})
+	})))
 
-	mux.HandleFunc("PUT /south-america/images", func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("PUT /south-america/images", requirePassword(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Println(r.Method, r.RequestURI)
 
 		// Parse our multipart form, 10 << 20 specifies a maximum
@@ -269,9 +278,9 @@ func main() {
 		tmpl := appTemplates.Lookup("image-list-item")
 		tmpl.Execute(w, i)
 
-	})
+	})))
 
-	mux.HandleFunc("POST /images", func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("POST /images", requirePassword(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 
 		img, err := imgSaver.saveImage(r.Body)
@@ -285,9 +294,9 @@ func main() {
 		w.Header().Add("Location", imageURL)
 		w.WriteHeader(http.StatusCreated)
 		log.Println("created image: ", img.ID)
-	})
+	})))
 
-	mux.HandleFunc("GET /images/{id}", func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /images/{id}", requirePassword(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
 
 		fileBytes, err := is.ReadFile(id)
@@ -302,7 +311,7 @@ func main() {
 		}
 
 		w.Write(fileBytes)
-	})
+	})))
 
 	mux.HandleFunc("DELETE /images/{id}", func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
@@ -432,4 +441,62 @@ type imageData struct {
 	OrderBy        string
 	CountryFilters []countryFilter
 	Images         []imageListItem
+}
+
+type Middleware func(http.Handler) http.Handler
+
+type passwordMiddlewareOpts struct {
+	enabled    bool
+	password   string
+	privateKey string
+}
+
+func requirePasswordMiddleware(opts passwordMiddlewareOpts) Middleware {
+	return func(next http.Handler) http.Handler {
+		if !opts.enabled {
+			return next
+		}
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			auth := r.Header.Get("Authorization")
+			log.Println("auth", auth)
+
+			if len(auth) == 0 {
+				w.Header().Add("WWW-Authenticate", `Basic realm="Access to saws.world"`)
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+
+			after, ok := strings.CutPrefix(auth, "Basic ")
+			if !ok {
+				err := fmt.Errorf("invalid Authentication header: %s", auth)
+				log.Println(err.Error())
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			decoded, err := base64.StdEncoding.DecodeString(after)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusForbidden)
+				return
+			}
+
+			log.Println(string(decoded))
+			spl := strings.Split(string(decoded), ":")
+			if len(spl) != 2 {
+				log.Printf("invalid Authentication header %s\n", decoded)
+				err = fmt.Errorf("invalid Authentication header: %s", auth)
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			log.Println(spl[1], opts.password)
+			if spl[1] == opts.password {
+				next.ServeHTTP(w, r)
+			} else {
+				w.Header().Add("WWW-Authenticate", `Basic realm="Access to saws.world"`)
+				w.WriteHeader(http.StatusUnauthorized)
+			}
+
+		})
+	}
 }
