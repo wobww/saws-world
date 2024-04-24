@@ -458,7 +458,6 @@ func requirePasswordMiddleware(opts passwordMiddlewareOpts) Middleware {
 		}
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			auth := r.Header.Get("Authorization")
-			log.Println("auth", auth)
 
 			if len(auth) == 0 {
 				w.Header().Add("WWW-Authenticate", `Basic realm="Access to saws.world"`)
@@ -480,7 +479,6 @@ func requirePasswordMiddleware(opts passwordMiddlewareOpts) Middleware {
 				return
 			}
 
-			log.Println(string(decoded))
 			spl := strings.Split(string(decoded), ":")
 			if len(spl) != 2 {
 				log.Printf("invalid Authentication header %s\n", decoded)
