@@ -27,9 +27,9 @@
                 >saws.world</a
             >
             <div
-                class="pb-6 pt-2 md:py-0 px-3 fixed bottom-20 right-0 left-auto top-auto bg-bg-300 m-0 md:static md:flex md:flex-col md:gap-2 md:h-full"
+                class="fixed bottom-20 left-auto right-0 top-auto m-0 bg-bg-300 px-3 pb-6 pt-2 md:static md:flex md:h-full md:flex-col md:gap-2 md:px-2 md:py-0 md:pb-0"
                 id="image-list-controls"
-            >
+                >
             <form class="flex flex-col items-stretch">
                 <span class="my-2 md:my-2 text-left font-light text-lg">Order By</span>
                 <div class="grid grid-cols-2 md:flex md:justify-evenly mx-2 md:gap-2 md:flex-col md:m-0 md:px-2">
@@ -44,7 +44,9 @@
                             hx-target="main"
                             hx-select="main"
                             hx-swap="outerHTML"
-                            {{ if not (eq .OrderBy "latest") }}checked="true"{{ end }}
+                            {{ if not (eq .OrderBy "latest") }}
+                                checked="true"
+                            {{ end }}
                         />
                         <span>Oldest</span>
                     </label>
