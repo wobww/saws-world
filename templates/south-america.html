@@ -109,6 +109,7 @@
 
                 })
             </script>
+            {{ if .UploadEnabled}}
             <form
                 id="image-upload-form"
                 hx-encoding="multipart/form-data"
@@ -167,6 +168,7 @@
                 </button>
                 <p id="image-upload-preview" class="opacity-0 block text-center my-1 text-sm">None selected</p>
             </form>
+            {{end}}
             </div>
 
             <script>

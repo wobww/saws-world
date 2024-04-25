@@ -52,6 +52,8 @@ func main() {
 		password: password,
 	})
 
+	adminsEnv, adminsOK := os.LookupEnv("SAWS_ADMINS")
+
 	appTemplates, err := templates.GetTemplates()
 	if err != nil {
 		log.Fatalf("could not get app templates: %s", err.Error())
@@ -136,6 +138,19 @@ func main() {
 
 			imgData := imageData{
 				Title: "South America 2023/24!",
+			}
+
+			username, _, err := getUserNamePassword(r.Header)
+			if err != nil {
+				log.Printf("could not get username and password on /south-america: %s\n", err.Error())
+			} else if adminsOK {
+				admins := strings.Split(adminsEnv, ",")
+				for _, a := range admins {
+					if username == a {
+						imgData.UploadEnabled = true
+						break
+					}
+				}
 			}
 
 			if order == "latest" {
@@ -441,6 +456,7 @@ type imageData struct {
 	OrderBy        string
 	CountryFilters []countryFilter
 	Images         []imageListItem
+	UploadEnabled  bool
 }
 
 type Middleware func(http.Handler) http.Handler
@@ -457,38 +473,14 @@ func requirePasswordMiddleware(opts passwordMiddlewareOpts) Middleware {
 			return next
 		}
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			auth := r.Header.Get("Authorization")
-
-			if len(auth) == 0 {
-				w.Header().Add("WWW-Authenticate", `Basic realm="Access to saws.world"`)
-				w.WriteHeader(http.StatusUnauthorized)
-				return
-			}
-
-			after, ok := strings.CutPrefix(auth, "Basic ")
-			if !ok {
-				err := fmt.Errorf("invalid Authentication header: %s", auth)
-				log.Println(err.Error())
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-
-			decoded, err := base64.StdEncoding.DecodeString(after)
+			_, password, err := getUserNamePassword(r.Header)
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusForbidden)
+				w.Header().Add("WWW-Authenticate", `Basic realm="Access to saws.world"`)
+				http.Error(w, err.Error(), http.StatusUnauthorized)
 				return
 			}
 
-			spl := strings.Split(string(decoded), ":")
-			if len(spl) != 2 {
-				log.Printf("invalid Authentication header %s\n", decoded)
-				err = fmt.Errorf("invalid Authentication header: %s", auth)
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-
-			log.Println(spl[1], opts.password)
-			if spl[1] == opts.password {
+			if password == opts.password {
 				next.ServeHTTP(w, r)
 			} else {
 				w.Header().Add("WWW-Authenticate", `Basic realm="Access to saws.world"`)
@@ -497,4 +489,24 @@ func requirePasswordMiddleware(opts passwordMiddlewareOpts) Middleware {
 
 		})
 	}
+}
+
+func getUserNamePassword(header http.Header) (string, string, error) {
+	authHeader := header.Get("Authorization")
+	after, ok := strings.CutPrefix(authHeader, "Basic ")
+	if !ok {
+		return "", "", fmt.Errorf("invalid Authorization header: %s", authHeader)
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(after)
+	if err != nil {
+		return "", "", fmt.Errorf("invalid Authorization header: %w", err)
+	}
+
+	spl := strings.Split(string(decoded), ":")
+	if len(spl) != 2 {
+		return "", "", fmt.Errorf("invalid Authorization header: %s", authHeader)
+	}
+
+	return spl[0], spl[1], nil
 }
