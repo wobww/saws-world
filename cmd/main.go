@@ -256,42 +256,56 @@ func main() {
 	mux.Handle("PUT /south-america/images", requirePassword(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Println(r.Method, r.RequestURI)
 
-		// Parse our multipart form, 10 << 20 specifies a maximum
-		// upload of 10 MB files.
-		r.ParseMultipartForm(10 << 20)
-
-		file, header, err := r.FormFile("image")
+		mr, err := r.MultipartReader()
 		if err != nil {
-			err = fmt.Errorf("error reading form image: %w", err)
 			log.Println(err.Error())
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		defer file.Close()
-
-		log.Printf("uploaded File: %+v\n", header.Filename)
-		log.Printf("file Size: %+v\n", header.Size)
-		log.Printf("MIME header: %+v\n", header.Header)
-
-		img, err := imgSaver.saveImage(file)
-		if err != nil {
-			log.Print(err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		i := imageListItem{
-			URL:      fmt.Sprintf("/south-america/images/%s", img.ID),
-			ImageURL: fmt.Sprintf("/images/%s", img.ID),
-			Width:    image.ResizeWidth(img.Width, img.Height, 350),
-			Height:   350,
+		items := []imageListItem{}
+
+		for {
+			part, err := mr.NextPart()
+			if err == io.EOF {
+				break
+			}
+			log.Println(part.FileName())
+
+			defer part.Close()
+
+			log.Printf("uploaded File: %+v\n", part.FileName())
+			log.Printf("MIME header: %+v\n", part.Header)
+
+			img, err := imgSaver.saveImage(part)
+			if err == db.DuplicateImage {
+				log.Println("dupe image")
+				continue
+			}
+
+			if err != nil {
+				log.Print(err.Error())
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			i := imageListItem{
+				URL:      fmt.Sprintf("/south-america/images/%s", img.ID),
+				ImageURL: fmt.Sprintf("/images/%s", img.ID),
+				Width:    image.ResizeWidth(img.Width, img.Height, 350),
+				Height:   350,
+			}
+			items = append(items, i)
 		}
 
-		w.Header().Add("Location", i.ImageURL)
 		w.WriteHeader(http.StatusCreated)
 
-		tmpl := appTemplates.Lookup("image-list-item")
-		tmpl.Execute(w, i)
+		tmpl := appTemplates.Lookup("image-list-items")
+		type images struct {
+			Images []imageListItem
+		}
+		imgs := images{items}
+		tmpl.Execute(w, imgs)
 
 	})))
 
@@ -431,6 +445,9 @@ func (is *imageSaver) saveImage(imageFile io.Reader) (image.Image, error) {
 	}
 
 	err = is.table.Save(dbImg)
+	if err == db.DuplicateImage {
+		return image.Image{}, err
+	}
 	if err != nil {
 		err = fmt.Errorf("could not save image %s to table: %w", img.ID, err)
 		return image.Image{}, err

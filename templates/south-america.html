@@ -118,11 +118,11 @@
                 hx-encoding="multipart/form-data"
                 hx-target="#image-list"
                 hx-put="/south-america/images"
-                hx-swap="afterbegin"
                 hx-on::after-on-load="
                     htmx.addClass(htmx.find('#image-upload-preview'), 'opacity-0')
                     htmx.addClass(htmx.find('button[type=submit]'), 'opacity-0')
                 "
+                hx-swap="afterbegin"
                 class="hidden md:block"
             >
                 <label for="images"
@@ -140,15 +140,13 @@
                         accept="image/jpeg, image/png"
                         multiple
                         hx-on:change="
-                            const input = htmx.find('#image-upload-form input[type=file]');
-                            const submit = htmx.find('#image-upload-form button[type=submit]')
-                            const preview = htmx.find('#image-upload-preview');
-
                             const curFiles = this.files;
                             if(curFiles.length === 0) {
                                 return
                             }
 
+                            const submit = htmx.find('#image-upload-form button[type=submit]')
+                            const preview = htmx.find('#image-upload-preview');
                             if (curFiles.length === 1) {
                                 preview.textContent = `${curFiles[0].name} selected`;
                             } else {
@@ -161,7 +159,8 @@
                     />
                     Select Photos
                 </label>
-                <button type="submit"
+                <button
+                    type="submit"
                     class="inline-block opacity-0 text-nowrap relative pl-5 top-[-2px] hover:top-0 font-mono text-white py-1 hover:bg-black bg-bilbao-600 mx-2"
                     style="
                         border: .08333rem solid #000;
@@ -185,7 +184,6 @@
             }
 
             m.addEventListener("change", (e) => {
-              console.log("media", e)
               if (m.matches) {
                 imgListControls.setAttribute("popover", "auto")
               } else {
@@ -218,6 +216,7 @@
                     id="image-list"
                     class="grid grid-cols-[repeat(auto-fit,_minmax(200px,_1fr))] md:grid-cols-[repeat(auto-fit,_minmax(300px,_1fr))] gap-3 my-3"
                 >
+                    {{ block "image-list-items" .}}
                     {{ range .Images}} {{ block "image-list-item" .}}
                     <li>
                         <a href="{{.URL}}">
@@ -231,7 +230,7 @@
                             </figure>
                         </a>
                     </li>
-                    {{ end }} {{ end }}
+                    {{ end }} {{ end }} {{ end }}
                 </ul>
         </main>
     </body>

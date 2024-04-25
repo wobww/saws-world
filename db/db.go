@@ -2,12 +2,15 @@ package db
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	sqlite "github.com/mattn/go-sqlite3"
 )
+
+var DuplicateImage = errors.New("duplicate image")
 
 func NewImageTable(dsn string) (*ImageTable, error) {
 	if len(strings.TrimSpace(dsn)) == 0 {
@@ -84,6 +87,15 @@ func (i *ImageTable) Save(img Image) error {
 		img.Country,
 		img.CreatedAt,
 	)
+
+	sqlErr, ok := err.(sqlite.Error)
+	if !ok {
+		return err
+	}
+
+	if sqlErr.ExtendedCode == sqlite.ErrConstraintPrimaryKey {
+		return DuplicateImage
+	}
 
 	return err
 }
