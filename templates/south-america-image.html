@@ -25,66 +25,73 @@
             }
         </style>
     </head>
-    <body class="flex items-center justify-center h-full my-5 mx-4 gap-10">
-        <a class="fixed top-3 left-3" href="/south-america">Back</a>
-
-        {{ if .PrevURL}}
-        <a
-            class="hover:decoration-wavy"
-            hx-boost="true"
-            hx-trigger="keyup[key==='ArrowLeft'] from:body"
-            href="{{.PrevURL}}"
-            >Previous</a
+    <body class="h-full overflow-y-hidden m-0">
+        <main
+            class="flex items-center justify-center md:justify-around h-full overflow-y-hidden my-2 md:mx-10 md:gap-10"
         >
-        {{ end }}
+            <a
+                class="fixed top-3 left-3 hover:decoration-wavy"
+                href="/south-america"
+                >Back</a
+            >
 
-        <div
-            class="image-container grow flex justify-center max-h-[40rem] max-w-7xl items-center"
-        >
-            <img
-                class="max-h-full max-w-full transition-opacity"
-                data-thumbhash="{{.ThumbHash}}"
-                src="{{ .ImageURL }}"
-                width="{{ .Width }}"
-                height="{{ .Height }}"
-            />
-        </div>
-        <script type="module">
-            import * as Thumbhash from "/static/thumbhash.js";
+            {{ if .PrevURL}}
+            <a
+                class="fixed bottom-3 left-3 md:static hover:decoration-wavy"
+                hx-boost="true"
+                hx-trigger="keyup[key==='ArrowLeft'] from:body"
+                href="{{.PrevURL}}"
+                >Previous</a
+            >
+            {{ end }}
 
-            const container = document.querySelector(".image-container");
-            const img = document.querySelector("img");
+            <div class="image-container md:w-4/5">
+                <img
+                    class="max-h-[90vh] max-w-full width-auto height-auto my-0 mx-auto object-contain transition-opacity"
+                    data-thumbhash="{{.ThumbHash}}"
+                    src="{{ .ImageURL }}"
+                    width="{{ .Width }}"
+                    height="{{ .Height }}"
+                />
+            </div>
+            <script type="module">
+                import * as Thumbhash from "/static/thumbhash.js";
 
-            const bytes = atob(img.dataset.thumbhash);
-            const hash = new Uint8Array(bytes.length);
-            for (let i = 0; i < bytes.length; i++) {
-                hash[i] = bytes.charCodeAt(i);
-            }
-            const { w, h, rgba } = Thumbhash.thumbHashToRGBA(hash);
+                const container = document.querySelector(".image-container");
+                const img = document.querySelector("img");
 
-            const canvas = document.createElement("canvas");
-            const c = canvas.getContext("2d");
-            const pixels = c.createImageData(w, h);
-            canvas.width = w;
-            canvas.height = h;
-            pixels.data.set(rgba);
-            c.putImageData(pixels, 0, 0);
+                const bytes = atob(img.dataset.thumbhash);
+                const hash = new Uint8Array(bytes.length);
+                for (let i = 0; i < bytes.length; i++) {
+                    hash[i] = bytes.charCodeAt(i);
+                }
+                const { w, h, rgba } = Thumbhash.thumbHashToRGBA(hash);
 
-            canvas.style.height = img.height + "px";
-            canvas.style.width = img.width + "px";
+                const canvas = document.createElement("canvas");
+                const c = canvas.getContext("2d");
+                const pixels = c.createImageData(w, h);
+                canvas.width = w;
+                canvas.height = h;
+                pixels.data.set(rgba);
+                c.putImageData(pixels, 0, 0);
 
-            // container.prepend(canvas);
-            img.setAttribute("style", "opacity:1;");
-        </script>
+                canvas.style.height = img.height + "px";
+                canvas.style.width = img.width + "px";
 
-        {{ if .NextURL }}
-        <a
-            hx-boost="true"
-            href="{{.NextURL}}"
-            hx-trigger="keyup[key==='ArrowRight'] from:body"
-            >Next</a
-        >
-        {{ end }}
+                // container.prepend(canvas);
+                img.setAttribute("style", "opacity:1;");
+            </script>
+
+            {{ if .NextURL }}
+            <a
+                hx-boost="true"
+                href="{{.NextURL}}"
+                class="fixed bottom-3 right-3 md:static hover:decoration-wavy"
+                hx-trigger="keyup[key==='ArrowRight'] from:body"
+                >Next</a
+            >
+            {{ end }}
+        </main>
     </body>
 </html>
 {{ end }}
