@@ -135,6 +135,25 @@
                         id="images"
                         accept="image/jpeg, image/png"
                         multiple
+                        hx-on:change="
+                            const input = htmx.find('#image-upload-form input[type=file]');
+                            const submit = htmx.find('#image-upload-form button[type=submit]')
+                            const preview = htmx.find('#image-upload-preview');
+
+                            const curFiles = this.files;
+                            if(curFiles.length === 0) {
+                                return
+                            }
+
+                            if (curFiles.length === 1) {
+                                preview.textContent = `${curFiles[0].name} selected`;
+                            } else {
+                                preview.textContent = `${curFiles.length} photos selected`
+                            }
+
+                            htmx.removeClass(preview, 'opacity-0')
+                            htmx.removeClass(submit, 'opacity-0')
+                        "
                     />
                     Select Photos
                 </label>
@@ -148,28 +167,6 @@
                 </button>
                 <p id="image-upload-preview" class="opacity-0 block text-center my-1 text-sm">None selected</p>
             </form>
-            <script>
-              const form = document.querySelector('#image-upload-form')
-               const input = document.querySelector('#image-upload-form input[type=file]');
-               const preview = document.querySelector('#image-upload-preview');
-               const submit = document.querySelector('#image-upload-form button[type=submit]')
-
-               input.addEventListener('change', () => {
-                 const curFiles = input.files;
-                 if(curFiles.length === 0) {
-                   preview.textContent = 'None selected';
-                 } else if (curFiles.length === 1) {
-                   preview.textContent = `${curFiles[0].name} selected`;
-                   htmx.removeClass(preview, "opacity-0")
-                 } else {
-                   preview.textContent = `${curFiles.length} photos selected`
-                   htmx.removeClass(preview, "opacity-0")
-                 }
-
-                 htmx.removeClass(submit, "opacity-0")
-               });
-
-            </script>
             </div>
 
             <script>
