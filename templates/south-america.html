@@ -19,7 +19,7 @@
 
     <body class="bg-bg-300">
         <aside
-            class="flex flex-col md:fixed md:h-screen md:gap-5 top-0 left-0 md:w-80 px-2 md:px-4 py-3 md:py-5 md:shadow-md"
+            class="flex flex-col md:fixed md:h-screen md:gap-5 top-0 left-0 md:w-80 px-2 md:px-4 py-3 md:pt-5 md:pb-0 md:shadow-md"
         >
             <a
                 class="text-2xl underline hover:decoration-wavy font-mono text-center"
@@ -27,13 +27,13 @@
                 >saws.world</a
             >
             <div
-                class="py-3 px-2 fixed bottom-20 right-0 left-auto top-auto bg-bg-300 m-0 md:static md:flex md:flex-col md:gap-5 md:h-full"
+                class="px-2 fixed bottom-20 right-0 left-auto top-auto bg-bg-300 m-0 md:static md:flex md:flex-col md:gap-2 md:h-full"
                 id="image-list-controls"
             >
             <form class="flex flex-col items-stretch">
-                <span class="my-2 text-center md:text-left md:my-2 font-light text-lg md:text-xl">Order By</span>
-                <div class="flex flex-row justify-evenly mx-2 md:gap-3 md:flex-col md:m-0 md:px-5">
-                    <label for="order-oldest" class="md:my-2">
+                <span class="my-2 text-center md:text-left font-light text-lg">Order By</span>
+                <div class="flex flex-row justify-evenly mx-2 md:gap-2 md:flex-col md:m-0 md:px-2">
+                    <label for="order-oldest">
                         <input
                             id="order-oldest"
                             value="oldest"
@@ -69,10 +69,10 @@
                 </div>
             </form>
             <form id="countryFilter" class="flex flex-col grow items-stretch">
-                <span class="text-center md:text-left my-2 font-light text-lg md:text-xl">Countries</span>
-                <div class="flex flex-row flex-wrap justify-around gap-4 md:gap-3 md:flex-col px-5">
+                <span class="text-center md:text-left my-2 font-light text-lg">Countries</span>
+                <div class="flex flex-row flex-wrap justify-around md:gap-2 md:flex-col px-2">
                     {{ range $i, $country := .CountryFilters }}
-                    <label for="{{$country.Value}}" class="my-2">
+                    <label for="{{$country.Value}}">
                         <input
                             type="checkbox"
                             id="{{$country.Value}}"
@@ -110,22 +110,68 @@
                 })
             </script>
             <form
+                id="image-upload-form"
                 hx-encoding="multipart/form-data"
                 hx-target="#image-list"
                 hx-put="/south-america/images"
                 hx-swap="afterbegin"
+                hx-on::after-on-load="
+                    htmx.addClass(htmx.find('#image-upload-preview'), 'opacity-0')
+                    htmx.addClass(htmx.find('button[type=submit]'), 'opacity-0')
+                "
                 class="hidden md:block"
             >
-                <input
-                    class="bg-neutral-300"
-                    type="file"
-                    name="image"
-                    accept="image/*"
-                />
-                <input type="submit" value="upload" />
-
+                <label for="images"
+                    class="text-nowrap inline-block relative top-[-2px] hover:top-0 font-mono px-1 text-white p-1 hover:bg-black bg-mine-600 w-min"
+                    style="
+                        border: .08333rem solid #000;
+                        box-shadow: 2px 2px #bbb;
+                    "
+                >
+                    <input
+                        class="hidden"
+                        type="file"
+                        name="image"
+                        id="images"
+                        accept="image/jpeg, image/png"
+                        multiple
+                    />
+                    Select Photos
+                </label>
+                <button type="submit"
+                    class="inline-block opacity-0 text-nowrap relative pl-5 top-[-2px] hover:top-0 font-mono text-white py-1 hover:bg-black bg-bilbao-600 mx-2"
+                    style="
+                        border: .08333rem solid #000;
+                        box-shadow: 2px 2px #bbb;
+                    "
+                >Upload<img class="htmx-indicator inline relative top-[-2px] mx-2" src="/static/bars.svg">
+                </button>
+                <p id="image-upload-preview" class="opacity-0 block text-center my-1 text-sm">None selected</p>
             </form>
+            <script>
+              const form = document.querySelector('#image-upload-form')
+               const input = document.querySelector('#image-upload-form input[type=file]');
+               const preview = document.querySelector('#image-upload-preview');
+               const submit = document.querySelector('#image-upload-form button[type=submit]')
+
+               input.addEventListener('change', () => {
+                 const curFiles = input.files;
+                 if(curFiles.length === 0) {
+                   preview.textContent = 'None selected';
+                 } else if (curFiles.length === 1) {
+                   preview.textContent = `${curFiles[0].name} selected`;
+                   htmx.removeClass(preview, "opacity-0")
+                 } else {
+                   preview.textContent = `${curFiles.length} photos selected`
+                   htmx.removeClass(preview, "opacity-0")
+                 }
+
+                 htmx.removeClass(submit, "opacity-0")
+               });
+
+            </script>
             </div>
+
             <script>
             let imgListControls = document.getElementById("image-list-controls");
 
@@ -146,7 +192,6 @@
 
             document.addEventListener("htmx:afterSwap", (e) => {
               imgListControls = document.getElementById("image-list-controls");
-              console.log("htmx:afterSwap", e)
               if (m.matches) {
                 imgListControls.setAttribute("popover", "auto")
               } else {
