@@ -794,6 +794,10 @@ video {
   flex-grow: 1;
 }
 
+.grid-cols-\[repeat\(auto-fit\2c _minmax\(200px\2c _1fr\)\)\] {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
 .flex-row {
   flex-direction: row;
 }
@@ -1060,6 +1064,10 @@ video {
 
   .md\:w-4\/5 {
     width: 80%;
+  }
+
+  .md\:grid-cols-\[repeat\(auto-fit\2c _minmax\(300px\2c _1fr\)\)\] {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   }
 
   .md\:flex-col {
