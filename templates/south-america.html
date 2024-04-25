@@ -27,12 +27,12 @@
                 >saws.world</a
             >
             <div
-                class="px-2 fixed bottom-20 right-0 left-auto top-auto bg-bg-300 m-0 md:static md:flex md:flex-col md:gap-2 md:h-full"
+                class="pb-6 pt-2 md:py-0 px-3 fixed bottom-20 right-0 left-auto top-auto bg-bg-300 m-0 md:static md:flex md:flex-col md:gap-2 md:h-full"
                 id="image-list-controls"
             >
             <form class="flex flex-col items-stretch">
-                <span class="my-2 text-center md:text-left font-light text-lg">Order By</span>
-                <div class="flex flex-row justify-evenly mx-2 md:gap-2 md:flex-col md:m-0 md:px-2">
+                <span class="my-2 md:my-2 text-left font-light text-lg">Order By</span>
+                <div class="grid grid-cols-2 md:flex md:justify-evenly mx-2 md:gap-2 md:flex-col md:m-0 md:px-2">
                     <label for="order-oldest">
                         <input
                             id="order-oldest"
@@ -69,8 +69,8 @@
                 </div>
             </form>
             <form id="countryFilter" class="flex flex-col grow items-stretch">
-                <span class="text-center md:text-left my-2 font-light text-lg">Countries</span>
-                <div class="flex flex-row flex-wrap justify-around md:gap-2 md:flex-col px-2">
+                <span class="my-2 text-left md:my-2 font-light text-lg">Countries</span>
+                <div class="grid grid-cols-2 px-2 md:flex md:justify-around gap-5 md:gap-2 md:flex-col md:px-2">
                     {{ range $i, $country := .CountryFilters }}
                     <label for="{{$country.Value}}">
                         <input
@@ -109,6 +109,7 @@
 
                 })
             </script>
+
             {{ if .UploadEnabled}}
             <form
                 id="image-upload-form"
@@ -168,6 +169,7 @@
                 </button>
                 <p id="image-upload-preview" class="opacity-0 block text-center my-1 text-sm">None selected</p>
             </form>
+
             {{end}}
             </div>
 
@@ -199,7 +201,11 @@
             })
             </script>
             <button
-                class="fixed bottom-4 right-10 px-4 py-3 md:hidden bg-bg-500 rounded-md hover:bg-bg-400 active:bg-bg-400"
+                class="fixed md:hidden text-lg bottom-6 right-8 text-nowrap inline-block font-mono text-white px-3 py-2 active:bg-black hover:bg-black bg-mine-600 w-min"
+                style="
+                    border: .08333rem solid #000;
+                    box-shadow: 2px 2px #bbb;
+                "
                 popovertarget="image-list-controls"
                 popovertargetaction="toggle"
             >Menu<button>
