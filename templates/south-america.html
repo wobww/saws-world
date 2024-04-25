@@ -41,7 +41,9 @@
                             type="radio"
                             hx-get="/south-america"
                             hx-push-url="true"
-                            hx-target="body"
+                            hx-target="main"
+                            hx-select="main"
+                            hx-swap="outerHTML"
                             {{ if not (eq .OrderBy "latest") }}checked="true"{{ end }}
                         />
                         <span>Oldest</span>
@@ -55,7 +57,9 @@
                             class="md:my-2"
                             hx-get="/south-america"
                             hx-push-url="true"
-                            hx-target="body"
+                            hx-target="main"
+                            hx-select="main"
+                            hx-swap="outerHTML"
                             {{ if eq .OrderBy "latest" }}
                                 checked="true"
                             {{ end }}
@@ -76,7 +80,9 @@
                             name="countries"
                             hx-get="/south-america"
                             hx-push-url="true"
-                            hx-target="body"
+                            hx-target="main"
+                            hx-select="main"
+                            hx-swap="outerHTML"
                             {{ if $country.Checked }}
                             checked="true"
                             {{ end}}
