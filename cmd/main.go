@@ -164,10 +164,11 @@ func main() {
 			imgItems := make([]imageListItem, len(imgs))
 			for i, img := range imgs {
 				imgItems[i] = imageListItem{
-					Width:    image.ResizeWidth(img.Width, img.Height, targetHeight),
-					Height:   targetHeight,
-					URL:      fmt.Sprintf("/south-america/images/%s", img.ID),
-					ImageURL: fmt.Sprintf("/images/%s?w=%d&h=%d", img.ID, w, targetHeight),
+					Width:     image.ResizeWidth(img.Width, img.Height, targetHeight),
+					Height:    targetHeight,
+					URL:       fmt.Sprintf("/south-america/images/%s", img.ID),
+					ImageURL:  fmt.Sprintf("/images/%s?w=%d&h=%d", img.ID, w, targetHeight),
+					Thumbhash: img.ThumbHash,
 				}
 
 			}
@@ -290,10 +291,11 @@ func main() {
 			}
 
 			i := imageListItem{
-				URL:      fmt.Sprintf("/south-america/images/%s", img.ID),
-				ImageURL: fmt.Sprintf("/images/%s", img.ID),
-				Width:    image.ResizeWidth(img.Width, img.Height, 350),
-				Height:   350,
+				URL:       fmt.Sprintf("/south-america/images/%s", img.ID),
+				ImageURL:  fmt.Sprintf("/images/%s", img.ID),
+				Width:     image.ResizeWidth(img.Width, img.Height, 350),
+				Height:    350,
+				Thumbhash: img.ThumbHash,
 			}
 			items = append(items, i)
 		}
@@ -456,10 +458,11 @@ func (is *imageSaver) saveImage(imageFile io.Reader) (image.Image, error) {
 }
 
 type imageListItem struct {
-	Width    int
-	Height   int
-	URL      string
-	ImageURL string
+	Width     int
+	Height    int
+	URL       string
+	ImageURL  string
+	Thumbhash string
 }
 
 type countryFilter struct {

@@ -118,11 +118,11 @@
                 hx-encoding="multipart/form-data"
                 hx-target="#image-list"
                 hx-put="/south-america/images"
+                hx-swap="afterbegin"
                 hx-on::after-on-load="
                     htmx.addClass(htmx.find('#image-upload-preview'), 'opacity-0')
                     htmx.addClass(htmx.find('button[type=submit]'), 'opacity-0')
                 "
-                hx-swap="afterbegin"
                 class="hidden md:block"
             >
                 <label for="images"
@@ -220,9 +220,15 @@
                     {{ range .Images}} {{ block "image-list-item" .}}
                     <li>
                         <a href="{{.URL}}">
-                            <figure>
+                            <figure class="width-fit relative">
                                 <img
-                                    class="mx-auto md:m-0"
+                                    data-thumbhash="{{.Thumbhash}}"
+                                    class="thumbhash-preview absolute z-0 top-0 mx-auto md:m-0"
+                                    width="{{.Width}}"
+                                    height="{{.Height}}"
+                                ></img>
+                                <img
+                                    class="opacity-0 transition-opacity relative z-10 mx-auto md:m-0"
                                     src="{{.ImageURL}}"
                                     width="{{.Width}}"
                                     height="{{.Height}}"
@@ -232,6 +238,26 @@
                     </li>
                     {{ end }} {{ end }} {{ end }}
                 </ul>
+                <script type="module">
+                import * as Thumbhash from "/static/thumbhash.js";
+
+                document.querySelectorAll(".thumbhash-preview").forEach((th) => {
+                    const base64ToBinary = base64 => new Uint8Array(atob(base64).split('').map(x => x.charCodeAt(0)))
+                    const dataURL = Thumbhash.thumbHashToDataURL(base64ToBinary(th.dataset.thumbhash));
+                    th.style.background = `center / cover url(${dataURL})`
+                })
+                document.querySelectorAll("ul img").forEach((img) => {
+                  if (img.complete) {
+                    img.style.opacity = 1
+                  }
+                  if (!img.className.includes("thumbhash-preview")){
+                    img.addEventListener("load", () => {
+                      img.style.opacity = 1
+                    })
+                  }
+                });
+
+                </script>
         </main>
     </body>
 </html>
