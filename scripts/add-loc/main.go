@@ -50,7 +50,7 @@ func main() {
 
 	body := bytes.NewBuffer(b)
 
-	req, err := http.NewRequest(http.MethodPatch, fmt.Sprintf("http://localhost:8080/images/%s", id), body)
+	req, err := http.NewRequest(http.MethodPatch, fmt.Sprintf("https://saws.world/images/%s", id), body)
 	if err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)

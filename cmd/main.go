@@ -137,10 +137,11 @@ func main() {
 				return
 			}
 
-			imgData := imageData{
+			imgPage := imagesPage{
 				Title: "South America 2023/24!",
 			}
 
+			deleteEnabled := false
 			username, _, err := getUserNamePassword(r.Header)
 			if err != nil {
 				log.Printf("could not get username and password on /south-america: %s\n", err.Error())
@@ -148,16 +149,17 @@ func main() {
 				admins := strings.Split(adminsEnv, ",")
 				for _, a := range admins {
 					if username == a {
-						imgData.UploadEnabled = true
+						imgPage.UploadEnabled = true
+						deleteEnabled = true
 						break
 					}
 				}
 			}
 
 			if order == "latest" {
-				imgData.OrderBy = "latest"
+				imgPage.OrderBy = "latest"
 			} else {
-				imgData.OrderBy = "oldest"
+				imgPage.OrderBy = "oldest"
 			}
 
 			targetHeight := 350
@@ -165,15 +167,16 @@ func main() {
 			imgItems := make([]imageListItem, len(imgs))
 			for i, img := range imgs {
 				imgItems[i] = imageListItem{
-					Width:     image.ResizeWidth(img.Width, img.Height, targetHeight),
-					Height:    targetHeight,
-					URL:       fmt.Sprintf("/south-america/images/%s", img.ID),
-					ImageURL:  fmt.Sprintf("/images/%s?w=%d&h=%d", img.ID, w, targetHeight),
-					Thumbhash: img.ThumbHash,
+					Width:         image.ResizeWidth(img.Width, img.Height, targetHeight),
+					Height:        targetHeight,
+					URL:           fmt.Sprintf("/south-america/images/%s", img.ID),
+					ImageURL:      fmt.Sprintf("/images/%s?w=%d&h=%d", img.ID, w, targetHeight),
+					Thumbhash:     img.ThumbHash,
+					DeleteEnabled: deleteEnabled,
 				}
 
 			}
-			imgData.Images = imgItems
+			imgPage.Images = imgItems
 
 			countryFilters := []countryFilter{
 				{"United States", "United States 🇺🇸", false},
@@ -191,9 +194,9 @@ func main() {
 				}
 			}
 
-			imgData.CountryFilters = countryFilters
+			imgPage.CountryFilters = countryFilters
 
-			err = tmpl.Execute(w, imgData)
+			err = tmpl.Execute(w, imgPage)
 			if err != nil {
 				log.Println(err.Error())
 			}
@@ -485,11 +488,12 @@ func (is *imageSaver) saveImage(imageFile io.Reader) (image.Image, error) {
 }
 
 type imageListItem struct {
-	Width     int
-	Height    int
-	URL       string
-	ImageURL  string
-	Thumbhash string
+	Width         int
+	Height        int
+	URL           string
+	ImageURL      string
+	Thumbhash     string
+	DeleteEnabled bool
 }
 
 type countryFilter struct {
@@ -498,7 +502,7 @@ type countryFilter struct {
 	Checked bool
 }
 
-type imageData struct {
+type imagesPage struct {
 	Title          string
 	OrderBy        string
 	CountryFilters []countryFilter

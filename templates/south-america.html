@@ -219,22 +219,33 @@
                     {{ block "image-list-items" .}}
                     {{ range .Images}} {{ block "image-list-item" .}}
                     <li>
-                        <a href="{{.URL}}">
-                            <figure class="width-fit relative">
+                            <figure class="w-fit relative">
+                                {{ if .DeleteEnabled}}
+                                    <button
+                                        hx-delete="{{.ImageURL}}"
+                                        hx-target="closest li"
+                                        class="absolute top-2 right-2 z-20 text-sm text-nowrap inline-block font-mono text-white p-1 active:bg-black hover:bg-black bg-red-600 w-min"
+                                        style="
+                                            border: .08333rem solid #000;
+                                            box-shadow: 2px 2px #bbb;
+                                        "
+                                    >Delete</button>
+                                {{ end }}
                                 <img
                                     data-thumbhash="{{.Thumbhash}}"
                                     class="thumbhash-preview absolute z-0 top-0 mx-auto md:m-0"
                                     width="{{.Width}}"
                                     height="{{.Height}}"
                                 ></img>
+                                <a href="{{.URL}}">
                                 <img
                                     class="opacity-0 transition-opacity relative z-10 mx-auto md:m-0"
                                     src="{{.ImageURL}}"
                                     width="{{.Width}}"
                                     height="{{.Height}}"
                                 />
+                                </a>
                             </figure>
-                        </a>
                     </li>
                     {{ end }} {{ end }} {{ end }}
                 </ul>
