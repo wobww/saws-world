@@ -342,7 +342,7 @@ func main() {
 			return
 		}
 
-		w.Header().Add("Cache-Control", "private,max-age=2628288")
+		w.Header().Add("Cache-Control", "private, max-age=2628288, immutable")
 		w.Write(fileBytes)
 	})))
 
