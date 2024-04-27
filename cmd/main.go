@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -342,6 +343,31 @@ func main() {
 		}
 
 		w.Write(fileBytes)
+	})))
+
+	mux.Handle("PATCH /images/{id}", requirePassword(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+
+		type loc struct {
+			Locality string `json:"locality"`
+			Country  string `json:"country"`
+		}
+
+		dec := json.NewDecoder(r.Body)
+
+		ll := loc{}
+		err = dec.Decode(&ll)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		_, err = table.DB.Exec("UPDATE image SET locality = (?), country = (?) WHERE id = (?)", ll.Locality, ll.Country, id)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 	})))
 
 	mux.HandleFunc("DELETE /images/{id}", func(w http.ResponseWriter, r *http.Request) {
