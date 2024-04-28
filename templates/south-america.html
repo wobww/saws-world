@@ -218,7 +218,14 @@
                 >
                     {{ block "image-list-items" .}}
                     {{ range .Images}} {{ block "image-list-item" .}}
-                    <li>
+                    <li
+                        {{ if .GetNextPage }}
+                            hx-get="/south-america/images/list?page={{.NextPage}}"
+                            hx-trigger="revealed"
+                            hx-swap="afterend"
+                        {{ end }}
+
+                    >
                             <figure class="w-fit relative">
                                 {{ if .DeleteEnabled}}
                                     <button
@@ -231,16 +238,11 @@
                                         "
                                     >Delete</button>
                                 {{ end }}
-                                <img
-                                    data-thumbhash="{{.Thumbhash}}"
-                                    class="thumbhash-preview absolute z-0 top-0 mx-auto md:m-0"
-                                    width="{{.Width}}"
-                                    height="{{.Height}}"
-                                ></img>
                                 <a href="{{.URL}}">
                                 <img
                                     class="opacity-0 transition-opacity relative z-10 mx-auto md:m-0"
                                     src="{{.ImageURL}}"
+                                    data-thumbhash="{{.Thumbhash}}"
                                     width="{{.Width}}"
                                     height="{{.Height}}"
                                 />
@@ -252,21 +254,41 @@
                 <script type="module">
                 import * as Thumbhash from "/static/thumbhash.js";
 
-                document.querySelectorAll(".thumbhash-preview").forEach((th) => {
-                    const base64ToBinary = base64 => new Uint8Array(atob(base64).split('').map(x => x.charCodeAt(0)))
-                    const dataURL = Thumbhash.thumbHashToDataURL(base64ToBinary(th.dataset.thumbhash));
-                    th.style.background = `center / cover url(${dataURL})`
-                })
-                document.querySelectorAll("ul img").forEach((img) => {
+
+                function setupThumbhash(li) {
+                  const img = li.querySelector("img")
+                  const base64ToBinary = base64 => new Uint8Array(atob(base64).split('').map(x => x.charCodeAt(0)))
+                  const dataURL = Thumbhash.thumbHashToDataURL(base64ToBinary(img.dataset.thumbhash));
+
+                  const fig = htmx.find(li, "figure")
+                  fig.style.background = `center / cover url(${dataURL})`
+
                   if (img.complete) {
-                    img.style.opacity = 1
-                  }
-                  if (!img.className.includes("thumbhash-preview")){
+                    setTimeout(() => {
+                      img.style.opacity = 1
+                    }, 200)
+                  } else {
                     img.addEventListener("load", () => {
                       img.style.opacity = 1
                     })
                   }
-                });
+                }
+
+
+                const ul = htmx.find("ul")
+                ul.querySelectorAll("li").forEach((li) => {
+                  setupThumbhash(li)
+                })
+
+                const observer = new MutationObserver((mutationList) => {
+                  for (const mut of mutationList) {
+                    if (mut.type === "childList") {
+                      mut.addedNodes.forEach((li) => li.nodeName === "LI" && setupThumbhash(li))
+                    }
+                  }
+                })
+
+                observer.observe(ul, { childList: true, subtree: false})
 
                 </script>
         </main>

@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -125,6 +126,7 @@ func main() {
 
 			opts := db.GetOpts{
 				Countries: countries,
+				Page:      1,
 			}
 			order := r.URL.Query().Get("order")
 			if order == "latest" {
@@ -166,15 +168,19 @@ func main() {
 
 			imgItems := make([]imageListItem, len(imgs))
 			for i, img := range imgs {
-				imgItems[i] = imageListItem{
+				il := imageListItem{
 					Width:         image.ResizeWidth(img.Width, img.Height, targetHeight),
 					Height:        targetHeight,
 					URL:           fmt.Sprintf("/south-america/images/%s", img.ID),
-					ImageURL:      fmt.Sprintf("/images/%s?w=%d&h=%d", img.ID, w, targetHeight),
+					ImageURL:      fmt.Sprintf("/images/%s", img.ID),
 					Thumbhash:     img.ThumbHash,
 					DeleteEnabled: deleteEnabled,
 				}
-
+				if i == len(imgs)-1 {
+					il.GetNextPage = true
+					il.NextPage = 2
+				}
+				imgItems[i] = il
 			}
 			imgPage.Images = imgItems
 
@@ -201,6 +207,88 @@ func main() {
 				log.Println(err.Error())
 			}
 		})))
+
+	mux.Handle("GET /south-america/images/list", requirePassword(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		countriesParam := r.URL.Query().Get("countries")
+		page := r.URL.Query().Get("page")
+		pageNo, err := strconv.Atoi(page)
+		if err != nil {
+			err := fmt.Errorf("invalid page param: %s\n", page)
+			log.Printf(err.Error())
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		var countries []string
+		if len(countriesParam) > 0 {
+			countries = strings.Split(countriesParam, ",")
+		}
+
+		tmpl := appTemplates.Lookup("image-list-items")
+		if tmpl == nil {
+			log.Printf("%s template not found\n", templates.SouthAmerica)
+			return
+		}
+
+		opts := db.GetOpts{
+			Countries: countries,
+			Page:      pageNo,
+		}
+		order := r.URL.Query().Get("order")
+		if order == "latest" {
+			opts.OrderDirection = db.DESC
+		}
+		imgs, err := table.Get(opts)
+		if err != nil {
+			log.Println(err.Error())
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		deleteEnabled := false
+		username, _, err := getUserNamePassword(r.Header)
+		if err != nil {
+			log.Printf("could not get username and password on /south-america: %s\n", err.Error())
+		} else if adminsOK {
+			admins := strings.Split(adminsEnv, ",")
+			for _, a := range admins {
+				if username == a {
+					deleteEnabled = true
+					break
+				}
+			}
+		}
+
+		targetHeight := 350
+
+		imgItems := make([]imageListItem, len(imgs))
+		for i, img := range imgs {
+			il := imageListItem{
+				Width:         image.ResizeWidth(img.Width, img.Height, targetHeight),
+				Height:        targetHeight,
+				URL:           fmt.Sprintf("/south-america/images/%s", img.ID),
+				ImageURL:      fmt.Sprintf("/images/%s", img.ID),
+				Thumbhash:     img.ThumbHash,
+				DeleteEnabled: deleteEnabled,
+			}
+			if i == len(imgs)-1 {
+				il.GetNextPage = true
+				il.NextPage = pageNo + 1
+			}
+			imgItems[i] = il
+		}
+
+		type images struct {
+			Images []imageListItem
+		}
+		il := images{
+			Images: imgItems,
+		}
+		err = tmpl.Execute(w, il)
+		if err != nil {
+			log.Println(err.Error())
+		}
+	})))
 
 	mux.Handle("GET /south-america/images/{id}", requirePassword(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tmpl := appTemplates.Lookup("south-america-image")
@@ -494,6 +582,8 @@ type imageListItem struct {
 	ImageURL      string
 	Thumbhash     string
 	DeleteEnabled bool
+	GetNextPage   bool
+	NextPage      int
 }
 
 type countryFilter struct {

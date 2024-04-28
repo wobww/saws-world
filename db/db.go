@@ -117,39 +117,40 @@ const DESC = OrderDirection("DESC")
 type GetOpts struct {
 	OrderDirection OrderDirection
 	Countries      []string
+	Page           int
 }
 
 func (i *ImageTable) Get(opts ...GetOpts) ([]Image, error) {
 	direction := ASC
-	countries := []any{}
+	args := []any{}
+	page := 0
 
 	if len(opts) > 0 {
 		// ignore other opts
 		opt := opts[0]
+
+		page = opt.Page
 
 		if len(opt.OrderDirection) != 0 {
 			direction = opt.OrderDirection
 		}
 
 		if len(opt.Countries) > 0 {
-			any := make([]any, len(opt.Countries))
 			for i := range opt.Countries {
-				any[i] = opt.Countries[i]
+				args = append(args, opt.Countries[i])
 			}
-
-			countries = any
 		}
 	}
 
 	sb := strings.Builder{}
 	sb.WriteString("SELECT * FROM image")
-	if len(countries) > 0 {
+	if len(args) > 0 {
 		sb.WriteString(" WHERE")
 
-		for i := range countries {
+		for i := range args {
 			sb.WriteString(" country = (?)")
 
-			if i < len(countries)-1 {
+			if i < len(args)-1 {
 				sb.WriteString(" OR ")
 			}
 		}
@@ -163,11 +164,18 @@ func (i *ImageTable) Get(opts ...GetOpts) ([]Image, error) {
 		sb.WriteString(" DESC")
 	}
 
+	if page > 0 {
+		pageSize := 5
+		sb.WriteString(" LIMIT (?) OFFSET (?)")
+		args = append(args, pageSize)
+		args = append(args, pageSize*(page-1))
+	}
+
 	sb.WriteString(";")
 
 	q := sb.String()
 
-	rows, err := i.DB.Query(q, countries...)
+	rows, err := i.DB.Query(q, args...)
 	if err != nil {
 		return []Image{}, fmt.Errorf("could not get image rows: %w", err)
 	}

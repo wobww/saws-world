@@ -39,8 +39,8 @@ func main() {
 	}
 
 	b, err := json.Marshal(loc{
-		Locality: "New York",
-		Country:  "United States",
+		Locality: "Santiago",
+		Country:  "Chile",
 	})
 	if err != nil {
 		fmt.Println(err.Error())
@@ -65,5 +65,14 @@ func main() {
 		os.Exit(1)
 		return
 	}
-	fmt.Println(resp.StatusCode)
+
+	buf := bytes.Buffer{}
+
+	_, err = buf.ReadFrom(resp.Body)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+
+	fmt.Println(resp.StatusCode, buf.String())
 }
