@@ -201,7 +201,7 @@
             })
             </script>
             <button
-                class="fixed md:hidden text-lg bottom-6 right-8 text-nowrap inline-block font-mono text-white px-3 py-2 active:bg-black hover:bg-black bg-mine-600 w-min"
+                class="fixed md:hidden text-lg bottom-6 right-8 z-10 text-nowrap inline-block font-mono text-white px-3 py-2 active:bg-black hover:bg-black bg-mine-600 w-min"
                 style="
                     border: .08333rem solid #000;
                     box-shadow: 2px 2px #bbb;
@@ -224,7 +224,6 @@
                             hx-trigger="revealed"
                             hx-swap="afterend"
                         {{ end }}
-
                     >
                             <figure class="w-fit relative">
                                 {{ if .DeleteEnabled}}
@@ -240,7 +239,7 @@
                                 {{ end }}
                                 <a href="{{.URL}}">
                                 <img
-                                    class="opacity-0 transition-opacity relative z-10 mx-auto md:m-0"
+                                    class="opacity-0 transition-opacity relative mx-auto md:m-0"
                                     src="{{.ImageURL}}"
                                     data-thumbhash="{{.Thumbhash}}"
                                     width="{{.Width}}"
