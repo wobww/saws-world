@@ -384,52 +384,54 @@ func main() {
 		w.Write(fileBytes)
 	})))
 
-	mux.Handle("PATCH /images/{id}", requireBasicAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("id")
+	mux.Handle("PATCH /images/{id}",
+		requireBasicAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			id := r.PathValue("id")
 
-		type loc struct {
-			Locality string `json:"locality"`
-			Country  string `json:"country"`
-		}
+			type loc struct {
+				Locality string `json:"locality"`
+				Country  string `json:"country"`
+			}
 
-		dec := json.NewDecoder(r.Body)
+			dec := json.NewDecoder(r.Body)
 
-		ll := loc{}
-		err = dec.Decode(&ll)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
+			ll := loc{}
+			err = dec.Decode(&ll)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 
-		_, err = table.DB.Exec("UPDATE image SET locality = (?), country = (?) WHERE id = (?)", ll.Locality, ll.Country, id)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.WriteHeader(http.StatusNoContent)
-	})))
+			_, err = table.DB.Exec("UPDATE image SET locality = (?), country = (?) WHERE id = (?)", ll.Locality, ll.Country, id)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+		})))
 
-	mux.HandleFunc("DELETE /images/{id}", func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("id")
-		log.Printf("DELETE %s", id)
-		err = table.Delete(id)
-		if err != nil {
-			msg := fmt.Sprintf("could not delete image %s from table: %s", id, err.Error())
-			log.Println(msg)
-			http.Error(w, msg, http.StatusInternalServerError)
-			return
-		}
+	mux.Handle("DELETE /images/{id}",
+		requireBasicAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			id := r.PathValue("id")
+			log.Printf("DELETE %s", id)
+			err = table.Delete(id)
+			if err != nil {
+				msg := fmt.Sprintf("could not delete image %s from table: %s", id, err.Error())
+				log.Println(msg)
+				http.Error(w, msg, http.StatusInternalServerError)
+				return
+			}
 
-		err = is.Delete(id)
-		if err != nil {
-			msg := fmt.Sprintf("could not delete image file %s: %s", id, err.Error())
-			log.Println(msg)
-			http.Error(w, msg, http.StatusInternalServerError)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
+			err = is.Delete(id)
+			if err != nil {
+				msg := fmt.Sprintf("could not delete image file %s: %s", id, err.Error())
+				log.Println(msg)
+				http.Error(w, msg, http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
 
-	})
+		})))
 
 	mux.Handle("/static/",
 		http.StripPrefix("/static/", http.FileServer(http.Dir("static"))),
