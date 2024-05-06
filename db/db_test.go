@@ -15,15 +15,15 @@ import (
 func TestDB(t *testing.T) {
 
 	t.Run("should setup saws.db if no arg", func(t *testing.T) {
-		require.NoFileExists(t, "saws.db")
+		require.NoFileExists(t, "saws.sqlite")
 		_, err := db.NewImageTable("")
 		require.NoError(t, err)
 
-		stat, err := os.Stat("saws.db")
+		stat, err := os.Stat("saws.sqlite")
 		require.NoError(t, err)
 		assert.False(t, stat.IsDir())
 
-		require.NoError(t, os.Remove("saws.db"))
+		require.NoError(t, os.Remove("saws.sqlite"))
 	})
 
 	t.Run("should add image row", func(t *testing.T) {
@@ -165,15 +165,15 @@ type testTable struct {
 }
 
 func newTestTable(t *testing.T) testTable {
-	require.NoFileExists(t, "saws.db")
-	table, err := db.NewImageTable("")
+	require.NoFileExists(t, "test-saws.sqlite")
+	table, err := db.NewImageTable("file:test-saws.sqlite")
 	require.NoError(t, err)
 	return testTable{t, table}
 }
 
 func (t *testTable) Close() error {
 	_ = t.ImageTable.Close()
-	return os.Remove("saws.db")
+	return os.Remove("test-saws.sqlite")
 }
 
 func assertContainsRowWithID(t *testing.T, imgs []db.Image, id string) {

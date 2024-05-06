@@ -14,7 +14,7 @@ var DuplicateImage = errors.New("duplicate image")
 
 func NewImageTable(dsn string) (*ImageTable, error) {
 	if len(strings.TrimSpace(dsn)) == 0 {
-		dsn = "file:saws.db"
+		dsn = "file:saws.sqlite"
 	}
 
 	db, err := sql.Open("sqlite3", dsn)
