@@ -200,31 +200,66 @@ func (i *ImageTable) getDESC() (*sql.Rows, error) {
 	return i.DB.Query("SELECT * FROM image ORDER BY created_at DESC;")
 }
 
-// GetPrev returns the Image previous to the one pointed to by id
-// when ordered by Created time
-func (i ImageTable) GetPrev(id string) (Image, error) {
-	row := i.DB.QueryRow(`SELECT * FROM image
-		WHERE created_at < (
-			SELECT created_at FROM image WHERE id = (?)
-		) ORDER BY created_at DESC LIMIT 1;`, id)
-
-	if err := row.Err(); err != nil {
-		return Image{}, fmt.Errorf("could not get previous row from %s: %w", id, err)
-	}
-
-	return i.scanImageRow(row)
+type GetPrevOpts struct {
+	N int
 }
 
-func (i *ImageTable) GetNext(id string) (Image, error) {
-	row := i.DB.QueryRow(`SELECT * FROM image WHERE created_at > (
-    SELECT created_at FROM image WHERE id = (?)
-) ORDER BY created_at ASC LIMIT 1;`, id)
-
-	if err := row.Err(); err != nil {
-		return Image{}, fmt.Errorf("could not get previous row from %s: %w", id, err)
+// GetPrev returns the Image previous to the one pointed to by id
+// when ordered by Created time
+func (i ImageTable) GetPrev(id string, opts ...GetPrevOpts) ([]Image, error) {
+	limit := 1
+	if len(opts) != 0 {
+		limit = opts[0].N
 	}
 
-	return i.scanImageRow(row)
+	rows, err := i.DB.Query(`SELECT * FROM image
+		WHERE created_at < (
+			SELECT created_at FROM image WHERE id = (?)
+		) ORDER BY created_at DESC LIMIT (?);`, id, limit)
+
+	if err != nil {
+		return []Image{}, fmt.Errorf("could not get previous rows from %s: %w", id, err)
+	}
+
+	imgs := []Image{}
+	for rows.Next() {
+		img, err := i.scanImageRow(rows)
+		if err != nil {
+			return []Image{}, err
+		}
+		imgs = append(imgs, img)
+	}
+	return imgs, nil
+}
+
+type GetNextOpts struct {
+	N int
+}
+
+func (i *ImageTable) GetNext(id string, opts ...GetNextOpts) ([]Image, error) {
+	limit := 1
+	if len(opts) != 0 {
+		limit = opts[0].N
+	}
+
+	rows, err := i.DB.Query(`SELECT * FROM image WHERE created_at > (
+    SELECT created_at FROM image WHERE id = (?)
+) ORDER BY created_at ASC LIMIT (?);`, id, limit)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not get next rows from %s: %w", id, err)
+	}
+
+	imgs := []Image{}
+	for rows.Next() {
+		img, err := i.scanImageRow(rows)
+		if err != nil {
+			return nil, fmt.Errorf("could not get next rows from %s: %w", id, err)
+		}
+		imgs = append(imgs, img)
+	}
+
+	return imgs, nil
 }
 
 type scanner interface {

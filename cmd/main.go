@@ -137,7 +137,22 @@ func main() {
 			if order == "latest" {
 				opts.OrderDirection = db.DESC
 			}
-			imgs, err := table.Get(opts)
+
+			var imgs []db.Image
+			var err error
+			if !r.URL.Query().Has("jumpTo") {
+				imgs, err = table.Get(opts)
+			} else {
+				jumpTo := r.URL.Query().Get("jumpTo")
+				jumpToImg, err := table.GetByID(jumpTo)
+				if err != nil {
+					log.Println(err.Error())
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				imgs = append(imgs, jumpToImg)
+			}
+
 			if err != nil {
 				log.Println(err.Error())
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -277,14 +292,14 @@ func main() {
 		if err != nil {
 			log.Println(err.Error())
 		} else {
-			data.PrevURL = fmt.Sprintf("/south-america/images/%s", prev.ID)
+			data.PrevURL = fmt.Sprintf("/south-america/images/%s", prev[0].ID)
 		}
 
 		next, err := table.GetNext(id)
 		if err != nil {
 			log.Println(err.Error())
 		} else {
-			data.NextURL = fmt.Sprintf("/south-america/images/%s", next.ID)
+			data.NextURL = fmt.Sprintf("/south-america/images/%s", next[0].ID)
 		}
 
 		err = tmpl.Execute(w, data)
