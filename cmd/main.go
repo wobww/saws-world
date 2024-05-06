@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -163,10 +162,7 @@ func main() {
 				Title: "South America 2023/24!",
 			}
 
-			deleteEnabled, err := determineCanDelete(admins, r.Header)
-			if err != nil {
-				log.Println(err.Error())
-			}
+			deleteEnabled := determineCanDelete(r, admins)
 
 			if order == "latest" {
 				imgPage.OrderBy = "latest"
@@ -237,10 +233,7 @@ func main() {
 			return
 		}
 
-		deleteEnabled, err := determineCanDelete(admins, r.Header)
-		if err != nil {
-			log.Println(err.Error())
-		}
+		deleteEnabled := determineCanDelete(r, admins)
 
 		type images struct {
 			Images []imageListItem
@@ -313,10 +306,7 @@ func main() {
 	mux.Handle("PUT /south-america/images", requireBasicAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Println(r.Method, r.RequestURI)
 
-		canDelete, err := determineCanDelete(admins, r.Header)
-		if err != nil {
-			log.Println(err.Error())
-		}
+		canDelete := determineCanDelete(r, admins)
 
 		mr, err := r.MultipartReader()
 		if err != nil {
@@ -579,55 +569,27 @@ func requireBasicAuthMiddleware(opts passwordMiddlewareOpts) Middleware {
 			return next
 		}
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			_, password, err := getUserNamePassword(r.Header)
-			if err != nil {
+			_, password, ok := r.BasicAuth()
+			if !ok || password != opts.password {
 				w.Header().Add("WWW-Authenticate", `Basic realm="Access to saws.world"`)
-				http.Error(w, err.Error(), http.StatusUnauthorized)
+				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
 
-			if password == opts.password {
-				next.ServeHTTP(w, r)
-			} else {
-				w.Header().Add("WWW-Authenticate", `Basic realm="Access to saws.world"`)
-				w.WriteHeader(http.StatusUnauthorized)
-			}
-
+			next.ServeHTTP(w, r)
 		})
 	}
 }
 
-func determineCanDelete(admins []string, header http.Header) (bool, error) {
+func determineCanDelete(r *http.Request, admins []string) bool {
 	if len(admins) == 0 {
-		return false, nil
+		return false
 	}
-
-	username, _, err := getUserNamePassword(header)
-	if err != nil {
-		return false, fmt.Errorf("could not determine whether user can delete: %w", err)
-	}
-
-	return slices.Contains(admins, username), nil
-}
-
-func getUserNamePassword(header http.Header) (string, string, error) {
-	authHeader := header.Get("Authorization")
-	after, ok := strings.CutPrefix(authHeader, "Basic ")
+	username, _, ok := r.BasicAuth()
 	if !ok {
-		return "", "", fmt.Errorf("invalid Authorization header: %s", authHeader)
+		return false
 	}
-
-	decoded, err := base64.StdEncoding.DecodeString(after)
-	if err != nil {
-		return "", "", fmt.Errorf("invalid Authorization header: %w", err)
-	}
-
-	spl := strings.Split(string(decoded), ":")
-	if len(spl) != 2 {
-		return "", "", fmt.Errorf("invalid Authorization header: %s", authHeader)
-	}
-
-	return spl[0], spl[1], nil
+	return slices.Contains(admins, username)
 }
 
 func toImageListItems(imgs []db.Image, deleteEnabled bool, pageNo int) []imageListItem {
