@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -49,12 +50,16 @@ func main() {
 
 	password, passwordOK := os.LookupEnv("SAWS_PASSWORD")
 
-	requirePassword := requirePasswordMiddleware(passwordMiddlewareOpts{
+	requireBasicAuth := requireBasicAuthMiddleware(passwordMiddlewareOpts{
 		enabled:  passwordOK,
 		password: password,
 	})
 
 	adminsEnv, adminsOK := os.LookupEnv("SAWS_ADMINS")
+	admins := []string{}
+	if adminsOK {
+		admins = strings.Split(adminsEnv, ",")
+	}
 
 	appTemplates, err := templates.GetTemplates()
 	if err != nil {
@@ -109,7 +114,7 @@ func main() {
 		tmpl.Execute(w, nil)
 	})
 
-	mux.Handle("GET /south-america", requirePassword(
+	mux.Handle("GET /south-america", requireBasicAuth(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			countriesParam := r.URL.Query().Get("countries")
 
@@ -143,19 +148,9 @@ func main() {
 				Title: "South America 2023/24!",
 			}
 
-			deleteEnabled := false
-			username, _, err := getUserNamePassword(r.Header)
+			deleteEnabled, err := determineCanDelete(admins, r.Header)
 			if err != nil {
-				log.Printf("could not get username and password on /south-america: %s\n", err.Error())
-			} else if adminsOK {
-				admins := strings.Split(adminsEnv, ",")
-				for _, a := range admins {
-					if username == a {
-						imgPage.UploadEnabled = true
-						deleteEnabled = true
-						break
-					}
-				}
+				log.Println(err.Error())
 			}
 
 			if order == "latest" {
@@ -164,25 +159,7 @@ func main() {
 				imgPage.OrderBy = "oldest"
 			}
 
-			targetHeight := 350
-
-			imgItems := make([]imageListItem, len(imgs))
-			for i, img := range imgs {
-				il := imageListItem{
-					Width:         image.ResizeWidth(img.Width, img.Height, targetHeight),
-					Height:        targetHeight,
-					URL:           fmt.Sprintf("/south-america/images/%s", img.ID),
-					ImageURL:      fmt.Sprintf("/images/%s", img.ID),
-					Thumbhash:     img.ThumbHash,
-					DeleteEnabled: deleteEnabled,
-				}
-				if i == len(imgs)-1 {
-					il.GetNextPage = true
-					il.NextPage = 2
-				}
-				imgItems[i] = il
-			}
-			imgPage.Images = imgItems
+			imgPage.Images = toImageListItems(imgs, deleteEnabled, 1)
 
 			countryFilters := []countryFilter{
 				{"United States", "United States 🇺🇸", false},
@@ -208,7 +185,7 @@ func main() {
 			}
 		})))
 
-	mux.Handle("GET /south-america/images/list", requirePassword(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /south-america/images/list", requireBasicAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		countriesParam := r.URL.Query().Get("countries")
 		page := r.URL.Query().Get("page")
 		pageNo, err := strconv.Atoi(page)
@@ -245,44 +222,16 @@ func main() {
 			return
 		}
 
-		deleteEnabled := false
-		username, _, err := getUserNamePassword(r.Header)
+		deleteEnabled, err := determineCanDelete(admins, r.Header)
 		if err != nil {
-			log.Printf("could not get username and password on /south-america: %s\n", err.Error())
-		} else if adminsOK {
-			admins := strings.Split(adminsEnv, ",")
-			for _, a := range admins {
-				if username == a {
-					deleteEnabled = true
-					break
-				}
-			}
-		}
-
-		targetHeight := 350
-
-		imgItems := make([]imageListItem, len(imgs))
-		for i, img := range imgs {
-			il := imageListItem{
-				Width:         image.ResizeWidth(img.Width, img.Height, targetHeight),
-				Height:        targetHeight,
-				URL:           fmt.Sprintf("/south-america/images/%s", img.ID),
-				ImageURL:      fmt.Sprintf("/images/%s", img.ID),
-				Thumbhash:     img.ThumbHash,
-				DeleteEnabled: deleteEnabled,
-			}
-			if i == len(imgs)-1 {
-				il.GetNextPage = true
-				il.NextPage = pageNo + 1
-			}
-			imgItems[i] = il
+			log.Println(err.Error())
 		}
 
 		type images struct {
 			Images []imageListItem
 		}
 		il := images{
-			Images: imgItems,
+			Images: toImageListItems(imgs, deleteEnabled, pageNo),
 		}
 		err = tmpl.Execute(w, il)
 		if err != nil {
@@ -290,7 +239,7 @@ func main() {
 		}
 	})))
 
-	mux.Handle("GET /south-america/images/{id}", requirePassword(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /south-america/images/{id}", requireBasicAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tmpl := appTemplates.Lookup("south-america-image")
 		if tmpl == nil {
 			log.Printf("%s template not found\n", "south-america-image")
@@ -346,8 +295,13 @@ func main() {
 		}
 	})))
 
-	mux.Handle("PUT /south-america/images", requirePassword(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("PUT /south-america/images", requireBasicAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Println(r.Method, r.RequestURI)
+
+		canDelete, err := determineCanDelete(admins, r.Header)
+		if err != nil {
+			log.Println(err.Error())
+		}
 
 		mr, err := r.MultipartReader()
 		if err != nil {
@@ -382,14 +336,7 @@ func main() {
 				return
 			}
 
-			i := imageListItem{
-				URL:       fmt.Sprintf("/south-america/images/%s", img.ID),
-				ImageURL:  fmt.Sprintf("/images/%s", img.ID),
-				Width:     image.ResizeWidth(img.Width, img.Height, 350),
-				Height:    350,
-				Thumbhash: img.ThumbHash,
-			}
-			items = append(items, i)
+			items = append(items, toImageListItem(img, canDelete))
 		}
 
 		w.WriteHeader(http.StatusCreated)
@@ -403,7 +350,7 @@ func main() {
 
 	})))
 
-	mux.Handle("POST /images", requirePassword(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("POST /images", requireBasicAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 
 		img, err := imgSaver.saveImage(r.Body)
@@ -419,7 +366,7 @@ func main() {
 		log.Println("created image: ", img.ID)
 	})))
 
-	mux.Handle("GET /images/{id}", requirePassword(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /images/{id}", requireBasicAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
 
 		fileBytes, err := is.ReadFile(id)
@@ -437,7 +384,7 @@ func main() {
 		w.Write(fileBytes)
 	})))
 
-	mux.Handle("PATCH /images/{id}", requirePassword(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("PATCH /images/{id}", requireBasicAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
 
 		type loc struct {
@@ -523,11 +470,11 @@ type imageSaver struct {
 	m     *maps.Client
 }
 
-func (is *imageSaver) saveImage(imageFile io.Reader) (image.Image, error) {
+func (is *imageSaver) saveImage(imageFile io.Reader) (db.Image, error) {
 	img, err := is.ifs.Save(imageFile)
 	if err != nil {
 		err = fmt.Errorf("could not save image file: %w", err)
-		return image.Image{}, err
+		return db.Image{}, err
 	}
 
 	dbImg := db.Image{
@@ -566,16 +513,17 @@ func (is *imageSaver) saveImage(imageFile io.Reader) (image.Image, error) {
 
 	err = is.table.Save(dbImg)
 	if err == db.DuplicateImage {
-		return image.Image{}, err
+		return db.Image{}, err
 	}
 	if err != nil {
 		err = fmt.Errorf("could not save image %s to table: %w", img.ID, err)
-		return image.Image{}, err
+		return db.Image{}, err
 	}
-	return img, nil
+	return dbImg, nil
 }
 
 type imageListItem struct {
+	ID            string
 	Width         int
 	Height        int
 	URL           string
@@ -608,7 +556,7 @@ type passwordMiddlewareOpts struct {
 	privateKey string
 }
 
-func requirePasswordMiddleware(opts passwordMiddlewareOpts) Middleware {
+func requireBasicAuthMiddleware(opts passwordMiddlewareOpts) Middleware {
 	return func(next http.Handler) http.Handler {
 		if !opts.enabled {
 			return next
@@ -632,6 +580,19 @@ func requirePasswordMiddleware(opts passwordMiddlewareOpts) Middleware {
 	}
 }
 
+func determineCanDelete(admins []string, header http.Header) (bool, error) {
+	if len(admins) == 0 {
+		return false, nil
+	}
+
+	username, _, err := getUserNamePassword(header)
+	if err != nil {
+		return false, fmt.Errorf("could not determine whether user can delete: %w", err)
+	}
+
+	return slices.Contains(admins, username), nil
+}
+
 func getUserNamePassword(header http.Header) (string, string, error) {
 	authHeader := header.Get("Authorization")
 	after, ok := strings.CutPrefix(authHeader, "Basic ")
@@ -650,4 +611,31 @@ func getUserNamePassword(header http.Header) (string, string, error) {
 	}
 
 	return spl[0], spl[1], nil
+}
+
+func toImageListItems(imgs []db.Image, deleteEnabled bool, pageNo int) []imageListItem {
+	imgItems := make([]imageListItem, len(imgs))
+	for i, img := range imgs {
+		il := toImageListItem(img, deleteEnabled)
+		if i == len(imgs)-1 {
+			il.GetNextPage = true
+			il.NextPage = pageNo + 1
+		}
+		imgItems[i] = il
+	}
+
+	return imgItems
+}
+
+func toImageListItem(img db.Image, deleteEnabled bool) imageListItem {
+	targetHeight := 350
+	return imageListItem{
+		ID:            img.ID,
+		Width:         image.ResizeWidth(img.Width, img.Height, targetHeight),
+		Height:        targetHeight,
+		URL:           fmt.Sprintf("/south-america/images/%s", img.ID),
+		ImageURL:      fmt.Sprintf("/images/%s", img.ID),
+		Thumbhash:     img.ThumbHash,
+		DeleteEnabled: deleteEnabled,
+	}
 }

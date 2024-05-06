@@ -201,7 +201,7 @@
             })
             </script>
             <button
-                class="fixed md:hidden text-lg bottom-6 right-8 z-10 text-nowrap inline-block font-mono text-white px-3 py-2 active:bg-black hover:bg-black bg-mine-600 w-min"
+                class="fixed md:hidden text-lg bottom-6 right-8 z-50 text-nowrap inline-block font-mono text-white px-3 py-2 active:bg-black hover:bg-black bg-mine-600 w-min"
                 style="
                     border: .08333rem solid #000;
                     box-shadow: 2px 2px #bbb;
@@ -225,7 +225,10 @@
                             hx-swap="afterend"
                         {{ end }}
                     >
-                            <figure class="w-fit relative">
+                            <figure class="w-fit relative"
+                                id="{{.ID}}"
+
+                            >
                                 {{ if .DeleteEnabled}}
                                     <button
                                         hx-delete="{{.ImageURL}}"
