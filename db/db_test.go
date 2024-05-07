@@ -104,6 +104,104 @@ func TestDB(t *testing.T) {
 		assert.Equal(t, "image456", rows[1].ID)
 	})
 
+	t.Run("should get previous from specific row", func(t *testing.T) {
+		table := newTestTable(t)
+		defer table.Close()
+
+		fromImg := givenImageCreated(time.Now())
+		imgs := []db.Image{
+			givenImageCreated(time.Now().Add(-5 * time.Hour)),
+			givenImageCreated(time.Now().Add(-4 * time.Hour)),
+			givenImageCreated(time.Now().Add(-3 * time.Hour)),
+			givenImageCreated(time.Now().Add(-2 * time.Hour)),
+			givenImageCreated(time.Now().Add(-1 * time.Hour)),
+			fromImg,
+			givenImageCreated(time.Now().Add(time.Hour)),
+		}
+
+		for _, img := range imgs {
+			err := table.Save(img)
+			require.NoError(t, err)
+		}
+
+		rows, err := table.Get(db.GetOpts{
+			OrderDirection: db.DESC,
+			FromRowID:      fromImg.ID,
+			Limit:          3,
+		})
+		require.NoError(t, err)
+		require.Len(t, rows, 3)
+
+		assert.Equal(t, rows[0].ID, imgs[4].ID)
+		assert.Equal(t, rows[1].ID, imgs[3].ID)
+		assert.Equal(t, rows[2].ID, imgs[2].ID)
+
+		// should return remaining rows
+		rows, err = table.Get(db.GetOpts{
+			OrderDirection: db.DESC,
+			FromRowID:      rows[2].ID,
+			Limit:          3,
+		})
+		require.NoError(t, err)
+		require.Len(t, rows, 2)
+
+		assert.Equal(t, rows[0].ID, imgs[1].ID)
+		assert.Equal(t, rows[1].ID, imgs[0].ID)
+
+		// should return no rows that are left
+		rows, err = table.Get(db.GetOpts{
+			OrderDirection: db.DESC,
+			FromRowID:      rows[1].ID,
+			Limit:          3,
+		})
+		require.NoError(t, err)
+		assert.Empty(t, rows)
+	})
+
+	t.Run("should get next rows", func(t *testing.T) {
+		table := newTestTable(t)
+		defer table.Close()
+
+		fromImg := givenImageCreated(time.Now())
+		imgs := []db.Image{
+			givenImageCreated(time.Now().Add(-3 * time.Hour)),
+			givenImageCreated(time.Now().Add(-2 * time.Hour)),
+			givenImageCreated(time.Now().Add(-time.Hour)),
+			fromImg,
+			givenImageCreated(time.Now().Add(time.Hour)),
+			givenImageCreated(time.Now().Add(2 * time.Hour)),
+			givenImageCreated(time.Now().Add(3 * time.Hour)),
+			givenImageCreated(time.Now().Add(4 * time.Hour)),
+		}
+
+		for _, img := range imgs {
+			err := table.Save(img)
+			require.NoError(t, err)
+		}
+
+		rows, err := table.Get(db.GetOpts{
+			OrderDirection: db.ASC,
+			FromRowID:      fromImg.ID,
+			Limit:          2,
+		})
+		require.NoError(t, err)
+		require.Len(t, rows, 2)
+
+		assert.Equal(t, rows[0].ID, imgs[4].ID)
+		assert.Equal(t, rows[1].ID, imgs[5].ID)
+
+		rows, err = table.Get(db.GetOpts{
+			OrderDirection: db.ASC,
+			FromRowID:      rows[1].ID,
+			Limit:          2,
+		})
+		require.NoError(t, err)
+		require.Len(t, rows, 2)
+
+		assert.Equal(t, rows[0].ID, imgs[6].ID)
+		assert.Equal(t, rows[1].ID, imgs[7].ID)
+	})
+
 	t.Run("should get all localities", func(t *testing.T) {
 		table := newTestTable(t)
 		defer table.Close()
@@ -132,6 +230,13 @@ func givenCountriesAndLocalities(t *testing.T, it testTable, countryLocalities m
 			err := it.Save(givenImageInLocale(country, l))
 			require.NoError(t, err)
 		}
+	}
+}
+
+func givenImageCreated(t time.Time) db.Image {
+	return db.Image{
+		ID:        gonanoid.Must(),
+		CreatedAt: t,
 	}
 }
 

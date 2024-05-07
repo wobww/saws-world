@@ -118,57 +118,81 @@ type GetOpts struct {
 	OrderDirection OrderDirection
 	Countries      []string
 	Page           int
+	FromRowID      string
+	Limit          int
 }
 
 func (i *ImageTable) Get(opts ...GetOpts) ([]Image, error) {
-	direction := ASC
-	args := []any{}
-	page := 0
+	opt := GetOpts{
+		OrderDirection: ASC,
+		Countries:      []string{},
+	}
 
 	if len(opts) > 0 {
 		// ignore other opts
-		opt := opts[0]
+		opt = opts[0]
+	}
 
-		page = opt.Page
+	args := []any{}
+	sb := strings.Builder{}
+	sb.WriteString("SELECT * FROM image")
 
-		if len(opt.OrderDirection) != 0 {
-			direction = opt.OrderDirection
+	if len(opt.FromRowID) > 0 || len(opt.Countries) > 0 {
+		sb.WriteString(" WHERE ")
+
+		if len(opt.FromRowID) > 0 {
+			sb.WriteString("created_at")
+
+			if opt.OrderDirection == ASC {
+				sb.WriteString(" > ")
+			} else {
+				sb.WriteString(" < ")
+			}
+
+			sb.WriteString("( SELECT created_at FROM image WHERE id = (?) )")
+			args = append(args, opt.FromRowID)
+		}
+
+		if len(opt.Countries) > 0 && len(opt.FromRowID) > 0 {
+			sb.WriteString(" AND ")
+
 		}
 
 		if len(opt.Countries) > 0 {
+			sb.WriteString("country IN (")
+
 			for i := range opt.Countries {
+				sb.WriteString("?")
+
+				if i == len(opt.Countries)-1 {
+					sb.WriteString(")")
+				} else {
+					sb.WriteString(",")
+				}
+
 				args = append(args, opt.Countries[i])
-			}
-		}
-	}
-
-	sb := strings.Builder{}
-	sb.WriteString("SELECT * FROM image")
-	if len(args) > 0 {
-		sb.WriteString(" WHERE")
-
-		for i := range args {
-			sb.WriteString(" country = (?)")
-
-			if i < len(args)-1 {
-				sb.WriteString(" OR ")
 			}
 		}
 	}
 
 	sb.WriteString(" ORDER BY created_at")
 
-	if direction == ASC {
+	if opt.OrderDirection == ASC {
 		sb.WriteString(" ASC")
 	} else {
 		sb.WriteString(" DESC")
 	}
 
-	if page > 0 {
+	if opt.Page > 0 && len(opt.FromRowID) == 0 {
 		pageSize := 5
 		sb.WriteString(" LIMIT (?) OFFSET (?)")
 		args = append(args, pageSize)
-		args = append(args, pageSize*(page-1))
+		args = append(args, pageSize*(opt.Page-1))
+	}
+
+	if opt.Page == 0 && len(opt.FromRowID) > 0 {
+		sb.WriteString(" LIMIT (?)")
+		args = append(args, opt.Limit)
 	}
 
 	sb.WriteString(";")
