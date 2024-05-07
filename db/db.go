@@ -114,6 +114,19 @@ type OrderDirection string
 const ASC = OrderDirection("ASC")
 const DESC = OrderDirection("DESC")
 
+var InvalidCursor = errors.New("invalid cursor")
+
+func ParseCursor(cursor string) (GetOpts, error) {
+	// dec, err := base64.URLEncoding.DecodeString(cursor)
+	// if err != nil {
+	// 	return GetOpts{}, InvalidCursor
+	// }
+
+	// bytes.Split(dec, []byte("#"))
+
+	return GetOpts{}, errors.New("implement me")
+}
+
 type GetOpts struct {
 	OrderDirection OrderDirection
 	Countries      []string
@@ -122,15 +135,24 @@ type GetOpts struct {
 	Limit          int
 }
 
-func (i *ImageTable) GetList(opts ...GetOpts) ([]Image, error) {
+type ImageList struct {
+	Images []Image
+	Cursor string
+}
+
+func (i *ImageTable) GetList(opts ...GetOpts) (ImageList, error) {
 	opt := GetOpts{
 		OrderDirection: ASC,
 		Countries:      []string{},
+		Limit:          5,
 	}
 
 	if len(opts) > 0 {
 		// ignore other opts
 		opt = opts[0]
+		if opt.Limit == 0 {
+			opt.Limit = 5
+		}
 	}
 
 	args := []any{}
@@ -188,9 +210,7 @@ func (i *ImageTable) GetList(opts ...GetOpts) ([]Image, error) {
 		sb.WriteString(" LIMIT (?) OFFSET (?)")
 		args = append(args, pageSize)
 		args = append(args, pageSize*(opt.Page-1))
-	}
-
-	if opt.Page == 0 && len(opt.FromRowID) > 0 {
+	} else {
 		sb.WriteString(" LIMIT (?)")
 		args = append(args, opt.Limit)
 	}
@@ -199,9 +219,10 @@ func (i *ImageTable) GetList(opts ...GetOpts) ([]Image, error) {
 
 	q := sb.String()
 
+	fmt.Println(q, args)
 	rows, err := i.DB.Query(q, args...)
 	if err != nil {
-		return []Image{}, fmt.Errorf("could not get image rows: %w", err)
+		return ImageList{}, fmt.Errorf("could not get image rows: %w", err)
 	}
 	defer rows.Close()
 
@@ -209,11 +230,11 @@ func (i *ImageTable) GetList(opts ...GetOpts) ([]Image, error) {
 	for rows.Next() {
 		img, err := i.scanImageRow(rows)
 		if err != nil {
-			return []Image{}, err
+			return ImageList{}, err
 		}
 		imgs = append(imgs, img)
 	}
-	return imgs, nil
+	return ImageList{Images: imgs}, nil
 }
 
 func (i *ImageTable) getASC() (*sql.Rows, error) {
