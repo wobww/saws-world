@@ -64,7 +64,7 @@ func TestDB(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		rows, err := table.Get()
+		rows, err := table.GetList()
 		require.NoError(t, err)
 
 		assertContainsRowWithID(t, rows, "image123")
@@ -89,14 +89,14 @@ func TestDB(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		rows, err := table.Get(db.GetOpts{OrderDirection: db.DESC})
+		rows, err := table.GetList(db.GetOpts{OrderDirection: db.DESC})
 		require.NoError(t, err)
 
 		require.Len(t, rows, 2)
 		assert.Equal(t, "image456", rows[0].ID)
 		assert.Equal(t, "image123", rows[1].ID)
 
-		rows, err = table.Get()
+		rows, err = table.GetList()
 		require.NoError(t, err)
 
 		require.Len(t, rows, 2)
@@ -124,7 +124,7 @@ func TestDB(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		rows, err := table.Get(db.GetOpts{
+		rows, err := table.GetList(db.GetOpts{
 			OrderDirection: db.DESC,
 			FromRowID:      fromImg.ID,
 			Limit:          3,
@@ -137,7 +137,7 @@ func TestDB(t *testing.T) {
 		assert.Equal(t, rows[2].ID, imgs[2].ID)
 
 		// should return remaining rows
-		rows, err = table.Get(db.GetOpts{
+		rows, err = table.GetList(db.GetOpts{
 			OrderDirection: db.DESC,
 			FromRowID:      rows[2].ID,
 			Limit:          3,
@@ -149,7 +149,7 @@ func TestDB(t *testing.T) {
 		assert.Equal(t, rows[1].ID, imgs[0].ID)
 
 		// should return no rows that are left
-		rows, err = table.Get(db.GetOpts{
+		rows, err = table.GetList(db.GetOpts{
 			OrderDirection: db.DESC,
 			FromRowID:      rows[1].ID,
 			Limit:          3,
@@ -179,7 +179,7 @@ func TestDB(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		rows, err := table.Get(db.GetOpts{
+		rows, err := table.GetList(db.GetOpts{
 			OrderDirection: db.ASC,
 			FromRowID:      fromImg.ID,
 			Limit:          2,
@@ -190,7 +190,7 @@ func TestDB(t *testing.T) {
 		assert.Equal(t, rows[0].ID, imgs[4].ID)
 		assert.Equal(t, rows[1].ID, imgs[5].ID)
 
-		rows, err = table.Get(db.GetOpts{
+		rows, err = table.GetList(db.GetOpts{
 			OrderDirection: db.ASC,
 			FromRowID:      rows[1].ID,
 			Limit:          2,

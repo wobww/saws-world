@@ -122,7 +122,7 @@ type GetOpts struct {
 	Limit          int
 }
 
-func (i *ImageTable) Get(opts ...GetOpts) ([]Image, error) {
+func (i *ImageTable) GetList(opts ...GetOpts) ([]Image, error) {
 	opt := GetOpts{
 		OrderDirection: ASC,
 		Countries:      []string{},

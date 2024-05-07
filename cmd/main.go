@@ -140,7 +140,7 @@ func main() {
 			var imgs []db.Image
 			var err error
 			if !r.URL.Query().Has("jumpTo") {
-				imgs, err = table.Get(opts)
+				imgs, err = table.GetList(opts)
 			} else {
 				jumpTo := r.URL.Query().Get("jumpTo")
 				jumpToImg, err := table.GetByID(jumpTo)
@@ -226,7 +226,7 @@ func main() {
 		if order == "latest" {
 			opts.OrderDirection = db.DESC
 		}
-		imgs, err := table.Get(opts)
+		imgs, err := table.GetList(opts)
 		if err != nil {
 			log.Println(err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
