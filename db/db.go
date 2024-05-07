@@ -109,30 +109,19 @@ func (i *ImageTable) GetByID(id string) (Image, error) {
 	return i.scanImageRow(row)
 }
 
-type OrderDirection string
+type Order string
 
-const ASC = OrderDirection("ASC")
-const DESC = OrderDirection("DESC")
+const ASC = Order("ASC")
+const DESC = Order("DESC")
 
-var InvalidCursor = errors.New("invalid cursor")
+type GetListOptsFn func(*GetListOpts) error
 
-func ParseCursor(cursor string) (GetOpts, error) {
-	// dec, err := base64.URLEncoding.DecodeString(cursor)
-	// if err != nil {
-	// 	return GetOpts{}, InvalidCursor
-	// }
-
-	// bytes.Split(dec, []byte("#"))
-
-	return GetOpts{}, errors.New("implement me")
-}
-
-type GetOpts struct {
-	OrderDirection OrderDirection
-	Countries      []string
-	Page           int
-	FromRowID      string
-	Limit          int
+type GetListOpts struct {
+	Order        Order    `json:"order"`
+	Countries    []string `json:"countries"`
+	Page         int      `json:"page"`
+	ExclStartKey string   `json:"exclStartKey"`
+	Limit        int      `json:"limit"`
 }
 
 type ImageList struct {
@@ -140,18 +129,19 @@ type ImageList struct {
 	Cursor string
 }
 
-func (i *ImageTable) GetList(opts ...GetOpts) (ImageList, error) {
-	opt := GetOpts{
-		OrderDirection: ASC,
-		Countries:      []string{},
-		Limit:          5,
+func (i *ImageTable) GetList(opts ...GetListOptsFn) (ImageList, error) {
+	opt := GetListOpts{
+		Order:        ASC,
+		Countries:    []string{},
+		Page:         0,
+		ExclStartKey: "",
+		Limit:        5,
 	}
 
-	if len(opts) > 0 {
-		// ignore other opts
-		opt = opts[0]
-		if opt.Limit == 0 {
-			opt.Limit = 5
+	for _, option := range opts {
+		err := option(&opt)
+		if err != nil {
+			return ImageList{}, err
 		}
 	}
 
@@ -159,23 +149,23 @@ func (i *ImageTable) GetList(opts ...GetOpts) (ImageList, error) {
 	sb := strings.Builder{}
 	sb.WriteString("SELECT * FROM image")
 
-	if len(opt.FromRowID) > 0 || len(opt.Countries) > 0 {
+	if len(opt.ExclStartKey) > 0 || len(opt.Countries) > 0 {
 		sb.WriteString(" WHERE ")
 
-		if len(opt.FromRowID) > 0 {
+		if len(opt.ExclStartKey) > 0 {
 			sb.WriteString("created_at")
 
-			if opt.OrderDirection == ASC {
+			if opt.Order == ASC {
 				sb.WriteString(" > ")
 			} else {
 				sb.WriteString(" < ")
 			}
 
 			sb.WriteString("( SELECT created_at FROM image WHERE id = (?) )")
-			args = append(args, opt.FromRowID)
+			args = append(args, opt.ExclStartKey)
 		}
 
-		if len(opt.Countries) > 0 && len(opt.FromRowID) > 0 {
+		if len(opt.Countries) > 0 && len(opt.ExclStartKey) > 0 {
 			sb.WriteString(" AND ")
 
 		}
@@ -199,13 +189,13 @@ func (i *ImageTable) GetList(opts ...GetOpts) (ImageList, error) {
 
 	sb.WriteString(" ORDER BY created_at")
 
-	if opt.OrderDirection == ASC {
+	if opt.Order == ASC {
 		sb.WriteString(" ASC")
 	} else {
 		sb.WriteString(" DESC")
 	}
 
-	if opt.Page > 0 && len(opt.FromRowID) == 0 {
+	if opt.Page > 0 && len(opt.ExclStartKey) == 0 {
 		pageSize := 5
 		sb.WriteString(" LIMIT (?) OFFSET (?)")
 		args = append(args, pageSize)
@@ -219,7 +209,6 @@ func (i *ImageTable) GetList(opts ...GetOpts) (ImageList, error) {
 
 	q := sb.String()
 
-	fmt.Println(q, args)
 	rows, err := i.DB.Query(q, args...)
 	if err != nil {
 		return ImageList{}, fmt.Errorf("could not get image rows: %w", err)
@@ -237,74 +226,79 @@ func (i *ImageTable) GetList(opts ...GetOpts) (ImageList, error) {
 	return ImageList{Images: imgs}, nil
 }
 
-func (i *ImageTable) getASC() (*sql.Rows, error) {
-	return i.DB.Query("SELECT * FROM image ORDER BY created_at ASC;")
+func WithOpts(opts GetListOpts) GetListOptsFn {
+	return func(glo *GetListOpts) error {
+		*glo = opts
+		return nil
+	}
 }
 
-func (i *ImageTable) getDESC() (*sql.Rows, error) {
-	return i.DB.Query("SELECT * FROM image ORDER BY created_at DESC;")
+func WithOrder(o Order) GetListOptsFn {
+	return func(glo *GetListOpts) error {
+		glo.Order = o
+		return nil
+	}
 }
 
-type GetPrevOpts struct {
-	N int
+func WithDescOrder() GetListOptsFn {
+	return func(glo *GetListOpts) error {
+		glo.Order = DESC
+		return nil
+	}
 }
 
-// GetPrev returns the Image previous to the one pointed to by id
-// when ordered by Created time
-func (i ImageTable) GetPrev(id string, opts ...GetPrevOpts) ([]Image, error) {
-	limit := 1
-	if len(opts) != 0 {
-		limit = opts[0].N
+func WithAscOrder() GetListOptsFn {
+	return func(glo *GetListOpts) error {
+		glo.Order = ASC
+		return nil
+	}
+}
+
+func WithCountries(countries ...string) GetListOptsFn {
+	return func(glo *GetListOpts) error {
+		glo.Countries = countries
+		return nil
+	}
+}
+
+func WithLimit(limit int) GetListOptsFn {
+	return func(glo *GetListOpts) error {
+		glo.Limit = limit
+		return nil
+	}
+}
+
+func WithCursor(cursor Cursor) GetListOptsFn {
+	return func(glo *GetListOpts) error {
+		*glo = cursor.Opts()
+		return nil
 	}
 
-	rows, err := i.DB.Query(`SELECT * FROM image
-		WHERE created_at < (
-			SELECT created_at FROM image WHERE id = (?)
-		) ORDER BY created_at DESC LIMIT (?);`, id, limit)
+}
 
-	if err != nil {
-		return []Image{}, fmt.Errorf("could not get previous rows from %s: %w", id, err)
-	}
-
-	imgs := []Image{}
-	for rows.Next() {
-		img, err := i.scanImageRow(rows)
+func WithCursorStr(cursor string) GetListOptsFn {
+	return func(glo *GetListOpts) error {
+		c, err := ParseCursor(cursor)
 		if err != nil {
-			return []Image{}, err
+			return err
 		}
-		imgs = append(imgs, img)
+		*glo = c.Opts()
+		return nil
 	}
-	return imgs, nil
 }
 
-type GetNextOpts struct {
-	N int
+func WithPage(page int) GetListOptsFn {
+	return func(glo *GetListOpts) error {
+		glo.Page = page
+		return nil
+	}
 }
 
-func (i *ImageTable) GetNext(id string, opts ...GetNextOpts) ([]Image, error) {
-	limit := 1
-	if len(opts) != 0 {
-		limit = opts[0].N
+func WithExclStartKey(startKey string) GetListOptsFn {
+	return func(glo *GetListOpts) error {
+		glo.ExclStartKey = startKey
+		return nil
 	}
-
-	rows, err := i.DB.Query(`SELECT * FROM image WHERE created_at > (
-    SELECT created_at FROM image WHERE id = (?)
-) ORDER BY created_at ASC LIMIT (?);`, id, limit)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not get next rows from %s: %w", id, err)
-	}
-
-	imgs := []Image{}
-	for rows.Next() {
-		img, err := i.scanImageRow(rows)
-		if err != nil {
-			return nil, fmt.Errorf("could not get next rows from %s: %w", id, err)
-		}
-		imgs = append(imgs, img)
-	}
-
-	return imgs, nil
 }
 
 type scanner interface {

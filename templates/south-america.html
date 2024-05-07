@@ -30,7 +30,7 @@
                 class="fixed bottom-20 left-auto right-0 top-auto m-0 bg-bg-300 px-3 pb-6 pt-2 md:static md:flex md:h-full md:flex-col md:gap-2 md:px-2 md:py-0 md:pb-0"
                 id="image-list-controls"
                 >
-            <form class="flex flex-col items-stretch">
+            <form id="order-by" class="flex flex-col items-stretch">
                 <span class="my-2 md:my-2 text-left font-light text-lg">Order By</span>
                 <div class="grid grid-cols-2 md:flex md:justify-evenly mx-2 md:gap-2 md:flex-col md:m-0 md:px-2">
                     <label for="order-oldest">
@@ -108,6 +108,15 @@
                   if (countries.length > 0) {
                     e.detail.parameters.countries = countries.join()
                   }
+
+                  // add order by param
+                  const radio = document.querySelectorAll("#order-by input[type=radio]")
+
+                  radio.forEach(r => {
+                    if (r.checked) {
+                      e.detail.parameters.order = r.value
+                    }
+                  })
 
                 })
             </script>

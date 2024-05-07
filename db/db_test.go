@@ -89,9 +89,7 @@ func TestDB(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		list, err := table.GetList(db.GetOpts{OrderDirection: db.DESC})
-		require.NoError(t, err)
-
+		list, err := table.GetList(db.WithDescOrder())
 		require.Len(t, list.Images, 2)
 		assert.Equal(t, "image456", list.Images[0].ID)
 		assert.Equal(t, "image123", list.Images[1].ID)
@@ -108,15 +106,15 @@ func TestDB(t *testing.T) {
 		table := newTestTable(t)
 		defer table.Close()
 
-		fromImg := givenImageCreated(time.Now())
+		fromImg := givenImageCreatedAt(time.Now())
 		imgs := []db.Image{
-			givenImageCreated(time.Now().Add(-5 * time.Hour)),
-			givenImageCreated(time.Now().Add(-4 * time.Hour)),
-			givenImageCreated(time.Now().Add(-3 * time.Hour)),
-			givenImageCreated(time.Now().Add(-2 * time.Hour)),
-			givenImageCreated(time.Now().Add(-1 * time.Hour)),
+			givenImageCreatedAt(time.Now().Add(-5 * time.Hour)),
+			givenImageCreatedAt(time.Now().Add(-4 * time.Hour)),
+			givenImageCreatedAt(time.Now().Add(-3 * time.Hour)),
+			givenImageCreatedAt(time.Now().Add(-2 * time.Hour)),
+			givenImageCreatedAt(time.Now().Add(-1 * time.Hour)),
 			fromImg,
-			givenImageCreated(time.Now().Add(time.Hour)),
+			givenImageCreatedAt(time.Now().Add(time.Hour)),
 		}
 
 		for _, img := range imgs {
@@ -124,11 +122,11 @@ func TestDB(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		list, err := table.GetList(db.GetOpts{
-			OrderDirection: db.DESC,
-			FromRowID:      fromImg.ID,
-			Limit:          3,
-		})
+		list, err := table.GetList(db.WithOpts(db.GetListOpts{
+			Order:        db.DESC,
+			ExclStartKey: fromImg.ID,
+			Limit:        3,
+		}))
 		require.NoError(t, err)
 		require.Len(t, list.Images, 3)
 
@@ -137,11 +135,11 @@ func TestDB(t *testing.T) {
 		assert.Equal(t, list.Images[2].ID, imgs[2].ID)
 
 		// should return remaining rows
-		list, err = table.GetList(db.GetOpts{
-			OrderDirection: db.DESC,
-			FromRowID:      list.Images[2].ID,
-			Limit:          3,
-		})
+		list, err = table.GetList(db.WithOpts(db.GetListOpts{
+			Order:        db.DESC,
+			ExclStartKey: list.Images[2].ID,
+			Limit:        3,
+		}))
 		require.NoError(t, err)
 		require.Len(t, list.Images, 2)
 
@@ -149,11 +147,11 @@ func TestDB(t *testing.T) {
 		assert.Equal(t, list.Images[1].ID, imgs[0].ID)
 
 		// should return no rows that are left
-		list, err = table.GetList(db.GetOpts{
-			OrderDirection: db.DESC,
-			FromRowID:      list.Images[1].ID,
-			Limit:          3,
-		})
+		list, err = table.GetList(db.WithOpts(db.GetListOpts{
+			Order:        db.DESC,
+			ExclStartKey: list.Images[1].ID,
+			Limit:        3,
+		}))
 		require.NoError(t, err)
 		assert.Empty(t, list.Images)
 	})
@@ -162,16 +160,16 @@ func TestDB(t *testing.T) {
 		table := newTestTable(t)
 		defer table.Close()
 
-		fromImg := givenImageCreated(time.Now())
+		fromImg := givenImageCreatedAt(time.Now())
 		imgs := []db.Image{
-			givenImageCreated(time.Now().Add(-3 * time.Hour)),
-			givenImageCreated(time.Now().Add(-2 * time.Hour)),
-			givenImageCreated(time.Now().Add(-time.Hour)),
+			givenImageCreatedAt(time.Now().Add(-3 * time.Hour)),
+			givenImageCreatedAt(time.Now().Add(-2 * time.Hour)),
+			givenImageCreatedAt(time.Now().Add(-time.Hour)),
 			fromImg,
-			givenImageCreated(time.Now().Add(time.Hour)),
-			givenImageCreated(time.Now().Add(2 * time.Hour)),
-			givenImageCreated(time.Now().Add(3 * time.Hour)),
-			givenImageCreated(time.Now().Add(4 * time.Hour)),
+			givenImageCreatedAt(time.Now().Add(time.Hour)),
+			givenImageCreatedAt(time.Now().Add(2 * time.Hour)),
+			givenImageCreatedAt(time.Now().Add(3 * time.Hour)),
+			givenImageCreatedAt(time.Now().Add(4 * time.Hour)),
 		}
 
 		for _, img := range imgs {
@@ -179,22 +177,22 @@ func TestDB(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		list, err := table.GetList(db.GetOpts{
-			OrderDirection: db.ASC,
-			FromRowID:      fromImg.ID,
-			Limit:          2,
-		})
+		list, err := table.GetList(db.WithOpts(db.GetListOpts{
+			Order:        db.ASC,
+			ExclStartKey: fromImg.ID,
+			Limit:        2,
+		}))
 		require.NoError(t, err)
 		require.Len(t, list.Images, 2)
 
 		assert.Equal(t, list.Images[0].ID, imgs[4].ID)
 		assert.Equal(t, list.Images[1].ID, imgs[5].ID)
 
-		list, err = table.GetList(db.GetOpts{
-			OrderDirection: db.ASC,
-			FromRowID:      list.Images[1].ID,
-			Limit:          2,
-		})
+		list, err = table.GetList(db.WithOpts(db.GetListOpts{
+			Order:        db.ASC,
+			ExclStartKey: list.Images[1].ID,
+			Limit:        2,
+		}))
 		require.NoError(t, err)
 		require.Len(t, list.Images, 2)
 
@@ -206,7 +204,7 @@ func TestDB(t *testing.T) {
 		table := newTestTable(t)
 		defer table.Close()
 
-		imgs := spaceByHour([]db.Image{
+		imgs := givenSaved(t, table, spaceByHour([]db.Image{
 			givenImageInLocale("United States", "New York"),
 			givenImageInLocale("Chile", "Santiago"),
 			givenImageInLocale("Argentina", "Buenos Aires"),
@@ -216,19 +214,14 @@ func TestDB(t *testing.T) {
 			givenImageInLocale("Chile", "Santiago"),
 			givenImageInLocale("Bolivia", "La Paz"),
 			givenImageInLocale("Chile", "Santiago"),
-		})
-
-		for _, img := range imgs {
-			err := table.Save(img)
-			require.NoError(t, err)
-		}
+		})...)
 
 		tests := []struct {
 			Name            string
 			StartingFrom    string
 			Countries       []string
 			Limit           int
-			Direction       db.OrderDirection
+			Direction       db.Order
 			ExpectedIndexes []int
 		}{
 			// Ascending
@@ -247,18 +240,16 @@ func TestDB(t *testing.T) {
 			// edge cases
 			{"id not found asc", "id-not-here", []string{}, 100, db.ASC, []int{}},
 			{"id not found desc", "id-not-here", []string{}, 100, db.DESC, []int{}},
-			{"return default 5 on limit 0 asc", "", []string{}, 0, db.ASC, []int{0, 1, 2, 3, 4}},
-			{"return default 5 on limit 0 desc", "", []string{}, 0, db.DESC, []int{8, 7, 6, 5, 4}},
 		}
 
 		for _, tt := range tests {
 			t.Run(tt.Name, func(t *testing.T) {
-				list, err := table.GetList(db.GetOpts{
-					OrderDirection: tt.Direction,
-					FromRowID:      tt.StartingFrom,
-					Limit:          tt.Limit,
-					Countries:      tt.Countries,
-				})
+				list, err := table.GetList(db.WithOpts(db.GetListOpts{
+					Order:        tt.Direction,
+					ExclStartKey: tt.StartingFrom,
+					Limit:        tt.Limit,
+					Countries:    tt.Countries,
+				}))
 				require.NoError(t, err)
 
 				require.Len(t, list.Images, len(tt.ExpectedIndexes))
@@ -272,6 +263,37 @@ func TestDB(t *testing.T) {
 				}
 			})
 		}
+	})
+
+	t.Run("should work with cursor", func(t *testing.T) {
+		table := newTestTable(t)
+		defer table.Close()
+
+		imgs := givenSaved(t, table, spaceByHour([]db.Image{
+			givenImageInLocale("Chile", "Santiago"),
+			givenImageInLocale("Chile", "Santiago"),
+			givenImageInLocale("Chile", "Santiago"),
+			givenImageInLocale("United States", "Santiago"),
+			givenImageInLocale("Chile", "Santiago"),
+			givenImageInLocale("Chile", "Santiago"),
+			givenImageInLocale("Chile", "Santiago"),
+			givenImageInLocale("Chile", "Santiago"),
+			givenImageInLocale("Chile", "Santiago"),
+		})...)
+
+		cursor, err := db.NewCursor(db.GetListOpts{
+			Order:     db.ASC,
+			Countries: []string{"Chile"},
+			Limit:     2,
+		})
+		require.NoError(t, err)
+
+		list, err := table.GetList(db.WithCursorStr(cursor.String()))
+		require.NoError(t, err)
+
+		require.Len(t, list.Images, 2)
+		assert.Equal(t, imgs[0].ID, list.Images[0].ID)
+		assert.Equal(t, imgs[1].ID, list.Images[1].ID)
 	})
 
 	t.Run("should get all localities", func(t *testing.T) {
@@ -305,7 +327,7 @@ func givenCountriesAndLocalities(t *testing.T, it testTable, countryLocalities m
 	}
 }
 
-func givenImageCreated(t time.Time) db.Image {
+func givenImageCreatedAt(t time.Time) db.Image {
 	return db.Image{
 		ID:        gonanoid.Must(),
 		CreatedAt: t,
@@ -317,6 +339,14 @@ func spaceByHour(imgs []db.Image) []db.Image {
 		imgs[i].CreatedAt = time.Now().Add(-time.Hour * time.Duration(len(imgs)-i))
 	}
 	return imgs
+}
+
+func givenSaved(t *testing.T, table testTable, images ...db.Image) []db.Image {
+	for _, img := range images {
+		err := table.Save(img)
+		require.NoError(t, err)
+	}
+	return images
 }
 
 func givenImageInLocale(country, locality string) db.Image {

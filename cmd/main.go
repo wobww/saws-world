@@ -128,19 +128,25 @@ func main() {
 				return
 			}
 
-			opts := db.GetOpts{
+			opts := db.GetListOpts{
 				Countries: countries,
+				Order:     db.ASC,
 				Page:      1,
 			}
 			order := r.URL.Query().Get("order")
 			if order == "latest" {
-				opts.OrderDirection = db.DESC
+				opts.Order = db.DESC
 			}
 
 			var imgs []db.Image
 			var err error
 			if !r.URL.Query().Has("jumpTo") {
-				list, lerr := table.GetList(opts)
+
+				list, lerr := table.GetList(
+					db.WithOrder(opts.Order),
+					db.WithPage(opts.Page),
+					db.WithCountries(countries...),
+				)
 				imgs = list.Images
 				err = lerr
 			} else {
@@ -220,15 +226,17 @@ func main() {
 			return
 		}
 
-		opts := db.GetOpts{
-			Countries: countries,
-			Page:      pageNo,
+		order := db.ASC
+		if r.URL.Query().Get("order") == "latest" {
+			order = db.DESC
 		}
-		order := r.URL.Query().Get("order")
-		if order == "latest" {
-			opts.OrderDirection = db.DESC
-		}
-		list, err := table.GetList(opts)
+
+		list, err := table.GetList(
+			db.WithCountries(countries...),
+			db.WithOrder(order),
+			db.WithPage(pageNo),
+		)
+
 		if err != nil {
 			log.Println(err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -283,18 +291,18 @@ func main() {
 			ThumbHash: img.ThumbHash,
 		}
 
-		prev, err := table.GetPrev(id)
+		prev, err := table.GetList(db.WithDescOrder(), db.WithLimit(1), db.WithExclStartKey(img.ID))
 		if err != nil {
 			log.Println(err.Error())
-		} else {
-			data.PrevURL = fmt.Sprintf("/south-america/images/%s", prev[0].ID)
+		} else if len(prev.Images) == 1 {
+			data.PrevURL = fmt.Sprintf("/south-america/images/%s", prev.Images[0].ID)
 		}
 
-		next, err := table.GetNext(id)
+		next, err := table.GetList(db.WithAscOrder(), db.WithLimit(1), db.WithExclStartKey(img.ID))
 		if err != nil {
 			log.Println(err.Error())
-		} else {
-			data.NextURL = fmt.Sprintf("/south-america/images/%s", next[0].ID)
+		} else if len(next.Images) == 1 {
+			data.NextURL = fmt.Sprintf("/south-america/images/%s", next.Images[0].ID)
 		}
 
 		err = tmpl.Execute(w, data)
