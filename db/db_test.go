@@ -273,7 +273,7 @@ func TestDB(t *testing.T) {
 			givenImageInLocale("Chile", "Santiago"),
 			givenImageInLocale("Chile", "Santiago"),
 			givenImageInLocale("Chile", "Santiago"),
-			givenImageInLocale("United States", "Santiago"),
+			givenImageInLocale("United States", "New York"),
 			givenImageInLocale("Chile", "Santiago"),
 			givenImageInLocale("Chile", "Santiago"),
 			givenImageInLocale("Chile", "Santiago"),
@@ -294,6 +294,18 @@ func TestDB(t *testing.T) {
 		require.Len(t, list.Images, 2)
 		assert.Equal(t, imgs[0].ID, list.Images[0].ID)
 		assert.Equal(t, imgs[1].ID, list.Images[1].ID)
+
+		list, err = table.GetList(db.WithCursor(list.Cursor))
+		require.NoError(t, err)
+		require.Len(t, list.Images, 2)
+		assert.Equal(t, imgs[2].ID, list.Images[0].ID)
+		assert.Equal(t, imgs[4].ID, list.Images[1].ID)
+
+		list, err = table.GetList(db.WithCursorStr(list.Cursor.String()))
+		require.NoError(t, err)
+		require.Len(t, list.Images, 2)
+		assert.Equal(t, imgs[5].ID, list.Images[0].ID)
+		assert.Equal(t, imgs[6].ID, list.Images[1].ID)
 	})
 
 	t.Run("should get all localities", func(t *testing.T) {

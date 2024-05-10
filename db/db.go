@@ -126,7 +126,7 @@ type GetListOpts struct {
 
 type ImageList struct {
 	Images []Image
-	Cursor string
+	Cursor Cursor
 }
 
 func (i *ImageTable) GetList(opts ...GetListOptsFn) (ImageList, error) {
@@ -223,7 +223,20 @@ func (i *ImageTable) GetList(opts ...GetListOptsFn) (ImageList, error) {
 		}
 		imgs = append(imgs, img)
 	}
-	return ImageList{Images: imgs}, nil
+
+	if len(imgs) > 0 {
+		opt.ExclStartKey = imgs[len(imgs)-1].ID
+	}
+
+	cursor, err := NewCursor(opt)
+	if err != nil {
+		return ImageList{}, fmt.Errorf("could not create cursor on GetList: %w", err)
+	}
+
+	return ImageList{
+		Images: imgs,
+		Cursor: cursor,
+	}, nil
 }
 
 func WithOpts(opts GetListOpts) GetListOptsFn {

@@ -11,7 +11,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -60,6 +59,14 @@ func main() {
 		admins = strings.Split(adminsEnv, ",")
 	}
 
+	debugEnv, debugOK := os.LookupEnv("SAWS_DEBUG")
+	if !debugOK {
+		debugEnv = "0"
+	}
+
+	log.Println("debug", debugEnv)
+	debug := debugMiddleware(debugEnv == "1")
+
 	appTemplates, err := templates.GetTemplates()
 	if err != nil {
 		log.Fatalf("could not get app templates: %s", err.Error())
@@ -98,7 +105,7 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /{$}", debug(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !includeIndexPage {
 			http.Redirect(w, r, "/south-america", http.StatusFound)
 			return
@@ -111,9 +118,9 @@ func main() {
 		}
 
 		tmpl.Execute(w, nil)
-	})
+	})))
 
-	mux.Handle("GET /south-america", requireBasicAuth(
+	mux.Handle("GET /south-america", debug(requireBasicAuth(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			countriesParam := r.URL.Query().Get("countries")
 
@@ -131,33 +138,76 @@ func main() {
 			opts := db.GetListOpts{
 				Countries: countries,
 				Order:     db.ASC,
-				Page:      1,
 			}
 			order := r.URL.Query().Get("order")
 			if order == "latest" {
 				opts.Order = db.DESC
 			}
 
+			var previousCursor string
+			var nextCursor string
 			var imgs []db.Image
 			var err error
 			if !r.URL.Query().Has("jumpTo") {
-
-				list, lerr := table.GetList(
+				list, gerr := table.GetList(
 					db.WithOrder(opts.Order),
-					db.WithPage(opts.Page),
 					db.WithCountries(countries...),
 				)
+
 				imgs = list.Images
-				err = lerr
+				err = gerr
+				nextCursor = list.Cursor.EncodedString()
+
 			} else {
-				jumpTo := r.URL.Query().Get("jumpTo")
-				jumpToImg, err := table.GetByID(jumpTo)
+				jumpTo, err := table.GetByID(r.URL.Query().Get("jumpTo"))
 				if err != nil {
 					log.Println(err.Error())
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 					return
 				}
-				imgs = append(imgs, jumpToImg)
+
+				reversedOrder := reverseOrder(opts.Order)
+				pc, err := db.NewCursor(db.GetListOpts{
+					Order:        reversedOrder,
+					Countries:    countries,
+					ExclStartKey: jumpTo.ID,
+					Limit:        6,
+				})
+				if err != nil {
+					log.Println(err.Error())
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				prevList, err := table.GetList(db.WithCursor(pc))
+				if err != nil {
+					log.Println(err.Error())
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				log.Print(prevList.Images)
+				nc, err := db.NewCursor(db.GetListOpts{
+					Order:        opts.Order,
+					Countries:    countries,
+					ExclStartKey: jumpTo.ID,
+					Limit:        6,
+				})
+				if err != nil {
+					log.Println(err.Error())
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				nextList, err := table.GetList(db.WithCursor(nc))
+				if err != nil {
+					log.Println(err.Error())
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+
+				slices.Reverse(prevList.Images)
+				imgs = append(prevList.Images, jumpTo)
+				imgs = append(imgs, nextList.Images...)
+				nextCursor = nextList.Cursor.EncodedString()
+				previousCursor = prevList.Cursor.EncodedString()
 			}
 
 			if err != nil {
@@ -178,7 +228,7 @@ func main() {
 				imgPage.OrderBy = "oldest"
 			}
 
-			imgPage.Images = toImageListItems(imgs, deleteEnabled, 1)
+			imgPage.Images = toImageListItems(imgs, deleteEnabled, previousCursor, nextCursor)
 
 			countryFilters := []countryFilter{
 				{"United States", "United States 🇺🇸", false},
@@ -202,22 +252,13 @@ func main() {
 			if err != nil {
 				log.Println(err.Error())
 			}
-		})))
+		}))))
 
-	mux.Handle("GET /south-america/images/list", requireBasicAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		countriesParam := r.URL.Query().Get("countries")
-		page := r.URL.Query().Get("page")
-		pageNo, err := strconv.Atoi(page)
-		if err != nil {
-			err := fmt.Errorf("invalid page param: %s\n", page)
-			log.Printf(err.Error())
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		var countries []string
-		if len(countriesParam) > 0 {
-			countries = strings.Split(countriesParam, ",")
+	mux.Handle("GET /south-america/images/list", debug(requireBasicAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cursor := r.URL.Query().Get("cursor")
+		pagination := r.URL.Query().Get("pagination")
+		if pagination != "reverse" {
+			pagination = "forward"
 		}
 
 		tmpl := appTemplates.Lookup("image-list-items")
@@ -226,15 +267,8 @@ func main() {
 			return
 		}
 
-		order := db.ASC
-		if r.URL.Query().Get("order") == "latest" {
-			order = db.DESC
-		}
-
 		list, err := table.GetList(
-			db.WithCountries(countries...),
-			db.WithOrder(order),
-			db.WithPage(pageNo),
+			db.WithCursorStr(cursor),
 		)
 
 		if err != nil {
@@ -248,16 +282,22 @@ func main() {
 		type images struct {
 			Images []imageListItem
 		}
-		il := images{
-			Images: toImageListItems(list.Images, deleteEnabled, pageNo),
+		il := images{}
+
+		if pagination == "reverse" {
+			slices.Reverse(list.Images)
+			il.Images = toImageListItems(list.Images, deleteEnabled, list.Cursor.EncodedString(), "")
+		} else {
+			il.Images = toImageListItems(list.Images, deleteEnabled, "", list.Cursor.EncodedString())
 		}
+
 		err = tmpl.Execute(w, il)
 		if err != nil {
 			log.Println(err.Error())
 		}
-	})))
+	}))))
 
-	mux.Handle("GET /south-america/images/{id}", requireBasicAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /south-america/images/{id}", debug(requireBasicAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tmpl := appTemplates.Lookup("south-america-image")
 		if tmpl == nil {
 			log.Printf("%s template not found\n", "south-america-image")
@@ -274,6 +314,7 @@ func main() {
 		}
 
 		type imagePage struct {
+			ID        string
 			Title     string
 			ImageURL  string
 			Width     int
@@ -284,6 +325,7 @@ func main() {
 		}
 
 		data := imagePage{
+			ID:        img.ID,
 			Title:     fmt.Sprintf("South America %s", img.ID),
 			ImageURL:  fmt.Sprintf("/images/%s", img.ID),
 			Width:     img.Width,
@@ -311,9 +353,9 @@ func main() {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-	})))
+	}))))
 
-	mux.Handle("PUT /south-america/images", requireBasicAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("PUT /south-america/images", debug(requireBasicAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Println(r.Method, r.RequestURI)
 
 		canDelete := determineCanDelete(r, admins)
@@ -363,9 +405,9 @@ func main() {
 		imgs := images{items}
 		tmpl.Execute(w, imgs)
 
-	})))
+	}))))
 
-	mux.Handle("POST /images", requireBasicAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("POST /images", debug(requireBasicAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 
 		img, err := imgSaver.saveImage(r.Body)
@@ -379,9 +421,9 @@ func main() {
 		w.Header().Add("Location", imageURL)
 		w.WriteHeader(http.StatusCreated)
 		log.Println("created image: ", img.ID)
-	})))
+	}))))
 
-	mux.Handle("GET /images/{id}", requireBasicAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /images/{id}", debug(requireBasicAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
 
 		fileBytes, err := is.ReadFile(id)
@@ -397,10 +439,10 @@ func main() {
 
 		w.Header().Add("Cache-Control", "private, max-age=2628288, immutable")
 		w.Write(fileBytes)
-	})))
+	}))))
 
 	mux.Handle("PATCH /images/{id}",
-		requireBasicAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		debug(requireBasicAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			id := r.PathValue("id")
 
 			type loc struct {
@@ -423,10 +465,10 @@ func main() {
 				return
 			}
 			w.WriteHeader(http.StatusNoContent)
-		})))
+		}))))
 
 	mux.Handle("DELETE /images/{id}",
-		requireBasicAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		debug(requireBasicAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			id := r.PathValue("id")
 			log.Printf("DELETE %s", id)
 			err = table.Delete(id)
@@ -446,7 +488,7 @@ func main() {
 			}
 			w.WriteHeader(http.StatusOK)
 
-		})))
+		}))))
 
 	mux.Handle("/static/",
 		http.StripPrefix("/static/", http.FileServer(http.Dir("static"))),
@@ -547,8 +589,12 @@ type imageListItem struct {
 	ImageURL      string
 	Thumbhash     string
 	DeleteEnabled bool
-	GetNextPage   bool
-	NextPage      int
+
+	GetPreviousPage bool
+	PreviousCursor  string
+
+	GetNextPage bool
+	NextCursor  string
 }
 
 type countryFilter struct {
@@ -591,6 +637,18 @@ func requireBasicAuthMiddleware(opts passwordMiddlewareOpts) Middleware {
 	}
 }
 
+func debugMiddleware(enable bool) Middleware {
+	return func(next http.Handler) http.Handler {
+		if !enable {
+			return next
+		}
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			log.Println(r.URL.String())
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 func determineCanDelete(r *http.Request, admins []string) bool {
 	if len(admins) == 0 {
 		return false
@@ -602,14 +660,21 @@ func determineCanDelete(r *http.Request, admins []string) bool {
 	return slices.Contains(admins, username)
 }
 
-func toImageListItems(imgs []db.Image, deleteEnabled bool, pageNo int) []imageListItem {
+func toImageListItems(imgs []db.Image, deleteEnabled bool, previousCursor string, nextCursor string) []imageListItem {
 	imgItems := make([]imageListItem, len(imgs))
 	for i, img := range imgs {
 		il := toImageListItem(img, deleteEnabled)
-		if i == len(imgs)-1 {
-			il.GetNextPage = true
-			il.NextPage = pageNo + 1
+
+		if i == 0 && len(previousCursor) > 0 {
+			il.GetPreviousPage = true
+			il.PreviousCursor = previousCursor
 		}
+
+		if i == len(imgs)-1 && len(nextCursor) > 0 {
+			il.GetNextPage = true
+			il.NextCursor = nextCursor
+		}
+
 		imgItems[i] = il
 	}
 
@@ -627,4 +692,11 @@ func toImageListItem(img db.Image, deleteEnabled bool) imageListItem {
 		Thumbhash:     img.ThumbHash,
 		DeleteEnabled: deleteEnabled,
 	}
+}
+
+func reverseOrder(order db.Order) db.Order {
+	if order == db.ASC {
+		return db.DESC
+	}
+	return db.ASC
 }

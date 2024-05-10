@@ -31,39 +31,52 @@ func NewCursor(opts GetListOpts) (Cursor, error) {
 	}
 
 	var err error
-	for i, k := range keys {
+	for _, k := range keys {
 		switch k {
 		case orderKey:
 			if len(string(opts.Order)) > 0 {
 				err = writeKV(&sb, writeRune(k), writeString(string(opts.Order)))
+				_, err = sb.WriteRune(divider)
+				if err != nil {
+					return Cursor{}, fmt.Errorf("could not write divider for cursor: %w", err)
+				}
 			}
 		case countriesKey:
 			if len(opts.Countries) > 0 {
 				err = writeKV(&sb, writeRune(k), writeStringSlice(opts.Countries))
+				_, err = sb.WriteRune(divider)
+				if err != nil {
+					return Cursor{}, fmt.Errorf("could not write divider for cursor: %w", err)
+				}
 			}
 		case pageKey:
 			if opts.Page > 0 {
 				err = writeKV(&sb, writeRune(k), writeInt(opts.Page))
+				_, err = sb.WriteRune(divider)
+				if err != nil {
+					return Cursor{}, fmt.Errorf("could not write divider for cursor: %w", err)
+				}
 			}
 		case eskKey:
 			if len(opts.ExclStartKey) > 0 {
 				err = writeKV(&sb, writeRune(k), writeString(opts.ExclStartKey))
+				_, err = sb.WriteRune(divider)
+				if err != nil {
+					return Cursor{}, fmt.Errorf("could not write divider for cursor: %w", err)
+				}
 			}
 		case limitKey:
 			if opts.Limit > 0 {
 				err = writeKV(&sb, writeRune(k), writeInt(opts.Limit))
+				_, err = sb.WriteRune(divider)
+				if err != nil {
+					return Cursor{}, fmt.Errorf("could not write divider for cursor: %w", err)
+				}
 			}
 		}
 
 		if err != nil {
 			return Cursor{}, fmt.Errorf("could not write cursor for key %s: %w", string(k), err)
-		}
-
-		if i < len(keys)-1 {
-			_, err = sb.WriteRune(divider)
-			if err != nil {
-				return Cursor{}, fmt.Errorf("could not write divider for cursor: %w", err)
-			}
 		}
 	}
 
@@ -135,10 +148,18 @@ func writeStringSlice(ss []string) sbWriter {
 
 }
 
-func ParseCursor(cursorStr string) (Cursor, error) {
+func ParseCursor(cursorStr string) (*Cursor, error) {
 	cursor := Cursor{}
 	err := cursor.Parse(cursorStr)
-	return cursor, err
+	return &cursor, err
+}
+
+func MustParseCursor(cursorStr string) *Cursor {
+	c, err := ParseCursor(cursorStr)
+	if err != nil {
+		panic(fmt.Sprintf("must parse cursor %s: %s", cursorStr, err.Error()))
+	}
+	return c
 }
 
 type Cursor struct {

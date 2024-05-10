@@ -124,6 +124,10 @@ func TestParseCursor(t *testing.T) {
 				opts: db.GetListOpts{Page: 200, ExclStartKey: "123jkl"},
 				exp:  "p:200|e:123jkl",
 			},
+			{
+				opts: db.GetListOpts{Order: db.ASC, ExclStartKey: "abc123"},
+				exp:  "o:ASC|e:abc123",
+			},
 		}
 
 		for _, tt := range tests {

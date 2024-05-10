@@ -228,16 +228,19 @@
                     {{ block "image-list-items" .}}
                     {{ range .Images}} {{ block "image-list-item" .}}
                     <li
+                        {{ if .GetPreviousPage }}
+                            hx-get="/south-america/images/list?cursor={{.PreviousCursor}}&pagination=reverse"
+                            hx-trigger="revealed"
+                            hx-swap="beforebegin"
+                        {{ end }}
+
                         {{ if .GetNextPage }}
-                            hx-get="/south-america/images/list?page={{.NextPage}}"
+                            hx-get="/south-america/images/list?cursor={{.NextCursor}}"
                             hx-trigger="revealed"
                             hx-swap="afterend"
                         {{ end }}
                     >
-                            <figure class="w-fit relative"
-                                id="{{.ID}}"
-
-                            >
+                            <figure class="w-fit relative">
                                 {{ if .DeleteEnabled}}
                                     <button
                                         hx-delete="{{.ImageURL}}"
@@ -251,6 +254,7 @@
                                 {{ end }}
                                 <a href="{{.URL}}">
                                 <img
+                                    id="{{.ID}}"
                                     class="opacity-0 transition-opacity relative mx-auto md:m-0"
                                     src="{{.ImageURL}}"
                                     data-thumbhash="{{.Thumbhash}}"
