@@ -3,14 +3,20 @@ package router_test
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"slices"
 	"testing"
+	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wobwainwwight/sa-photos/db"
@@ -139,6 +145,33 @@ func TestRouter(t *testing.T) {
 				NextURL:   fmt.Sprintf("/south-america/images/%s", imgs[11].ID),
 			}),
 		},
+		{
+			Name:           "ImageAPI",
+			Method:         http.MethodGet,
+			URL:            fmt.Sprintf("/api/images/%s", imgs[1].ID),
+			ExpectedStatus: 200,
+			ExpectedContentFn: func(r io.Reader) error {
+				dec := json.NewDecoder(r)
+
+				body := db.Image{}
+				err = dec.Decode(&body)
+				if err != nil {
+					return err
+				}
+				if !cmp.Equal(body, imgs[1], cmpopts.EquateApproxTime(time.Second)) {
+					return errors.New("image body not as expected")
+				}
+				return nil
+			},
+			ExpectedContent: string(toJSON(t, imgs[1])),
+		},
+		{
+			Name:            "ImageAPINotFound",
+			Method:          http.MethodGet,
+			URL:             fmt.Sprintf("/api/images/abc123"),
+			ExpectedStatus:  404,
+			ExpectedContent: "image not found\n",
+		},
 	}
 
 	for _, s := range scenarios {
@@ -150,11 +183,18 @@ func TestRouter(t *testing.T) {
 			srv.ServeHTTP(rr, req)
 
 			assert.Equal(t, s.ExpectedStatus, rr.Result().StatusCode)
-			res := rr.Body.String()
 
-			assert.Equal(t, s.ExpectedContent, res)
-			if s.ExpectedContent != res {
-				saveBodyDiff(t, s, res)
+			if len(s.ExpectedContent) > 0 && s.ExpectedContentFn == nil {
+				res := rr.Body.String()
+				assert.Equal(t, s.ExpectedContent, res)
+				if s.ExpectedContent != res {
+					saveBodyDiff(t, s, res)
+				}
+			}
+
+			if s.ExpectedContentFn != nil {
+				require.NoError(t, s.ExpectedContentFn(rr.Body))
+
 			}
 		})
 
@@ -167,8 +207,9 @@ type scenario struct {
 	Method string
 	URL    string
 
-	ExpectedStatus  int
-	ExpectedContent string
+	ExpectedStatus    int
+	ExpectedContent   string
+	ExpectedContentFn func(io.Reader) error
 }
 
 func (s scenario) TestName() string {
@@ -225,4 +266,10 @@ func saveBodyDiff(t *testing.T, s scenario, res string) {
 
 	_, err = act.WriteString(res)
 	require.NoError(t, err)
+}
+
+func toJSON(t *testing.T, data any) []byte {
+	b, err := json.Marshal(data)
+	require.NoError(t, err)
+	return b
 }

@@ -48,6 +48,7 @@ func NewRouter(svc Services, opts Options) Router {
 	mux.HandleFunc("GET /images/{id}", ro.getImage)
 	mux.HandleFunc("PATCH /images/{id}", ro.patchImage)
 	mux.HandleFunc("DELETE /images/{id}", ro.deleteImage)
+	mux.HandleFunc("GET /api/images/{id}", ro.apiGetImage)
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
 	return ro
@@ -93,7 +94,6 @@ func (ro *Router) southAmerica(w http.ResponseWriter, r *http.Request) {
 		Order:     db.ASC,
 	}
 	order := r.URL.Query().Get("order")
-	fmt.Println("order:", order)
 	if order == "latest" {
 		opts.Order = db.DESC
 	}
@@ -460,6 +460,29 @@ func (ro *Router) deleteImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusOK)
+}
+
+func (ro *Router) apiGetImage(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	img, err := ro.ImageTable.GetByID(id)
+	if err != nil {
+		if err == db.NotFound {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		msg := fmt.Sprintf("could not get image %s from table: %s", id, err.Error())
+		log.Println(msg)
+		http.Error(w, msg, http.StatusInternalServerError)
+		return
+	}
+
+	enc := json.NewEncoder(w)
+	err = enc.Encode(img)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	} else {
+		w.WriteHeader(http.StatusOK)
+	}
 }
 
 func printJSON(d any) {

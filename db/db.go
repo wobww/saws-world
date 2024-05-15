@@ -11,6 +11,7 @@ import (
 )
 
 var DuplicateImage = errors.New("duplicate image")
+var NotFound = errors.New("image not found")
 
 func NewImageTable(dsn string) (*ImageTable, error) {
 	if len(strings.TrimSpace(dsn)) == 0 {
@@ -336,6 +337,10 @@ func (i *ImageTable) scanImageRow(s scanner) (Image, error) {
 		&img.UploadedAt,
 	)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return Image{}, NotFound
+
+		}
 		return Image{}, fmt.Errorf("could not scan image row: %w", err)
 	}
 	return img, nil
@@ -407,15 +412,15 @@ type TableInfo struct {
 }
 
 type Image struct {
-	ID         string
-	MimeType   string
-	Width      int
-	Height     int
-	ThumbHash  string
-	CreatedAt  time.Time
-	UploadedAt time.Time
-	Lat        float64
-	Long       float64
-	Locality   string
-	Country    string
+	ID         string    `json:"id"`
+	MimeType   string    `json:"mimeType"`
+	Width      int       `json:"width"`
+	Height     int       `json:"height"`
+	ThumbHash  string    `json:"thumbhash"`
+	CreatedAt  time.Time `json:"createdAt"`
+	UploadedAt time.Time `json:"uploadedAt"`
+	Lat        float64   `json:"lat"`
+	Long       float64   `json:"long"`
+	Locality   string    `json:"locality"`
+	Country    string    `json:"country"`
 }

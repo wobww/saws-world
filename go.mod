@@ -4,6 +4,7 @@ go 1.22
 
 require (
 	github.com/galdor/go-thumbhash v1.0.0
+	github.com/google/go-cmp v0.6.0
 	github.com/matoous/go-nanoid/v2 v2.0.0
 	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/rwcarlsen/goexif v0.0.0-20190401172101-9e8deecbddbd

@@ -49,8 +49,8 @@ func GivenImage(t *testing.T) db.Image {
 		ID:         gonanoid.Must(),
 		MimeType:   "image/jpeg",
 		ThumbHash:  gonanoid.Must(),
-		CreatedAt:  time.Now().UTC(),
-		UploadedAt: time.Now().UTC(),
+		CreatedAt:  time.Now().UTC().Round(time.Second),
+		UploadedAt: time.Now().UTC().Round(time.Second),
 	}
 
 	rand := rand.Float64()
