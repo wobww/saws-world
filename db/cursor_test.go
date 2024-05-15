@@ -52,6 +52,14 @@ func TestNewCursor(t *testing.T) {
 
 func TestParseCursor(t *testing.T) {
 
+	t.Run("blank cursors should fallback to default opts", func(t *testing.T) {
+		cursor, err := db.ParseCursor("")
+		require.NoError(t, err)
+
+		assert.Equal(t, db.DefaultOpts, cursor.Opts())
+		assert.Equal(t, "o:ASC|l:5", cursor.String())
+	})
+
 	t.Run("should parse cursor", func(t *testing.T) {
 		opts := db.GetListOpts{
 			Order:        db.ASC,

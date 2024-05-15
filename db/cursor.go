@@ -19,7 +19,7 @@ const divider = rune('|')
 const arrSep = rune(',')
 const colon = rune(':')
 
-func NewCursor(opts GetListOpts) (Cursor, error) {
+func NewCursor(opts GetListOpts) (*Cursor, error) {
 	sb := strings.Builder{}
 
 	keys := []rune{
@@ -38,7 +38,7 @@ func NewCursor(opts GetListOpts) (Cursor, error) {
 				err = writeKV(&sb, writeRune(k), writeString(string(opts.Order)))
 				_, err = sb.WriteRune(divider)
 				if err != nil {
-					return Cursor{}, fmt.Errorf("could not write divider for cursor: %w", err)
+					return nil, fmt.Errorf("could not write divider for cursor: %w", err)
 				}
 			}
 		case countriesKey:
@@ -46,7 +46,7 @@ func NewCursor(opts GetListOpts) (Cursor, error) {
 				err = writeKV(&sb, writeRune(k), writeStringSlice(opts.Countries))
 				_, err = sb.WriteRune(divider)
 				if err != nil {
-					return Cursor{}, fmt.Errorf("could not write divider for cursor: %w", err)
+					return nil, fmt.Errorf("could not write divider for cursor: %w", err)
 				}
 			}
 		case pageKey:
@@ -54,7 +54,7 @@ func NewCursor(opts GetListOpts) (Cursor, error) {
 				err = writeKV(&sb, writeRune(k), writeInt(opts.Page))
 				_, err = sb.WriteRune(divider)
 				if err != nil {
-					return Cursor{}, fmt.Errorf("could not write divider for cursor: %w", err)
+					return nil, fmt.Errorf("could not write divider for cursor: %w", err)
 				}
 			}
 		case eskKey:
@@ -62,7 +62,7 @@ func NewCursor(opts GetListOpts) (Cursor, error) {
 				err = writeKV(&sb, writeRune(k), writeString(opts.ExclStartKey))
 				_, err = sb.WriteRune(divider)
 				if err != nil {
-					return Cursor{}, fmt.Errorf("could not write divider for cursor: %w", err)
+					return nil, fmt.Errorf("could not write divider for cursor: %w", err)
 				}
 			}
 		case limitKey:
@@ -70,13 +70,13 @@ func NewCursor(opts GetListOpts) (Cursor, error) {
 				err = writeKV(&sb, writeRune(k), writeInt(opts.Limit))
 				_, err = sb.WriteRune(divider)
 				if err != nil {
-					return Cursor{}, fmt.Errorf("could not write divider for cursor: %w", err)
+					return nil, fmt.Errorf("could not write divider for cursor: %w", err)
 				}
 			}
 		}
 
 		if err != nil {
-			return Cursor{}, fmt.Errorf("could not write cursor for key %s: %w", string(k), err)
+			return nil, fmt.Errorf("could not write cursor for key %s: %w", string(k), err)
 		}
 	}
 
@@ -85,17 +85,18 @@ func NewCursor(opts GetListOpts) (Cursor, error) {
 	str = strings.TrimRightFunc(str, func(r rune) bool { return r == divider })
 	str = strings.TrimLeftFunc(str, func(r rune) bool { return r == divider })
 
-	return Cursor{
+	return &Cursor{
 		str:  str,
 		opts: opts,
 	}, nil
 }
 
-func writeIf(fn func() error, cond bool) error {
-	if cond {
-		return fn()
+func MustNewCursor(opts GetListOpts) *Cursor {
+	c, err := NewCursor(opts)
+	if err != nil {
+		panic(err.Error())
 	}
-	return nil
+	return c
 }
 
 func writeKV(sb *strings.Builder, kWriter sbWriter, vWriter sbWriter) error {
@@ -183,6 +184,10 @@ func (c *Cursor) EncodedString() string {
 
 func (c *Cursor) Parse(cursorStr string) error {
 	c.debugf("received cursor for parsing: %s\n", cursorStr)
+
+	if len(strings.TrimSpace(cursorStr)) == 0 {
+		return c.setToDefault()
+	}
 
 	dec, err := base64.URLEncoding.DecodeString(cursorStr)
 	if err != nil {
@@ -287,6 +292,15 @@ func (c *Cursor) Parse(cursorStr string) error {
 		}
 	}
 
+	return nil
+}
+
+func (c *Cursor) setToDefault() error {
+	def, err := NewCursor(DefaultOpts)
+	if err != nil {
+		return err
+	}
+	*c = *def
 	return nil
 }
 

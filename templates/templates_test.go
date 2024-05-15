@@ -12,8 +12,8 @@ func TestGetTemplates(t *testing.T) {
 	t.Run("should return all templates", func(t *testing.T) {
 
 		tempNames := []string{
-			templates.Index,
-			templates.SouthAmerica,
+			"index.html",
+			"south-america.html",
 		}
 
 		tmps, err := templates.GetTemplates()

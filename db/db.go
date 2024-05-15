@@ -126,17 +126,19 @@ type GetListOpts struct {
 
 type ImageList struct {
 	Images []Image
-	Cursor Cursor
+	Cursor *Cursor
+}
+
+var DefaultOpts = GetListOpts{
+	Order:        ASC,
+	Countries:    []string{},
+	Page:         0,
+	ExclStartKey: "",
+	Limit:        5,
 }
 
 func (i *ImageTable) GetList(opts ...GetListOptsFn) (ImageList, error) {
-	opt := GetListOpts{
-		Order:        ASC,
-		Countries:    []string{},
-		Page:         0,
-		ExclStartKey: "",
-		Limit:        5,
-	}
+	opt := DefaultOpts
 
 	for _, option := range opts {
 		err := option(&opt)
@@ -281,7 +283,7 @@ func WithLimit(limit int) GetListOptsFn {
 	}
 }
 
-func WithCursor(cursor Cursor) GetListOptsFn {
+func WithCursor(cursor *Cursor) GetListOptsFn {
 	return func(glo *GetListOpts) error {
 		*glo = cursor.Opts()
 		return nil

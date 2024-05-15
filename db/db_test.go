@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	gonanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wobwainwwight/sa-photos/db"
+	"github.com/wobwainwwight/sa-photos/db/dbtest"
 )
 
 func TestDB(t *testing.T) {
@@ -27,7 +27,7 @@ func TestDB(t *testing.T) {
 	})
 
 	t.Run("should add image row", func(t *testing.T) {
-		table := newTestTable(t)
+		table := dbtest.NewTestTable(t)
 		defer table.Close()
 
 		err := table.Save(db.Image{
@@ -45,7 +45,7 @@ func TestDB(t *testing.T) {
 	})
 
 	t.Run("should get list of image rows", func(t *testing.T) {
-		table := newTestTable(t)
+		table := dbtest.NewTestTable(t)
 		defer table.Close()
 
 		err := table.Save(db.Image{
@@ -72,7 +72,7 @@ func TestDB(t *testing.T) {
 	})
 
 	t.Run("should get rows sorted by created order", func(t *testing.T) {
-		table := newTestTable(t)
+		table := dbtest.NewTestTable(t)
 		defer table.Close()
 
 		err := table.Save(db.Image{
@@ -103,18 +103,18 @@ func TestDB(t *testing.T) {
 	})
 
 	t.Run("should get previous from specific row", func(t *testing.T) {
-		table := newTestTable(t)
+		table := dbtest.NewTestTable(t)
 		defer table.Close()
 
-		fromImg := givenImageCreatedAt(time.Now())
+		fromImg := givenImageCreatedAt(t, time.Now())
 		imgs := []db.Image{
-			givenImageCreatedAt(time.Now().Add(-5 * time.Hour)),
-			givenImageCreatedAt(time.Now().Add(-4 * time.Hour)),
-			givenImageCreatedAt(time.Now().Add(-3 * time.Hour)),
-			givenImageCreatedAt(time.Now().Add(-2 * time.Hour)),
-			givenImageCreatedAt(time.Now().Add(-1 * time.Hour)),
+			givenImageCreatedAt(t, time.Now().Add(-5*time.Hour)),
+			givenImageCreatedAt(t, time.Now().Add(-4*time.Hour)),
+			givenImageCreatedAt(t, time.Now().Add(-3*time.Hour)),
+			givenImageCreatedAt(t, time.Now().Add(-2*time.Hour)),
+			givenImageCreatedAt(t, time.Now().Add(-1*time.Hour)),
 			fromImg,
-			givenImageCreatedAt(time.Now().Add(time.Hour)),
+			givenImageCreatedAt(t, time.Now().Add(time.Hour)),
 		}
 
 		for _, img := range imgs {
@@ -157,19 +157,19 @@ func TestDB(t *testing.T) {
 	})
 
 	t.Run("should get next rows", func(t *testing.T) {
-		table := newTestTable(t)
+		table := dbtest.NewTestTable(t)
 		defer table.Close()
 
-		fromImg := givenImageCreatedAt(time.Now())
+		fromImg := givenImageCreatedAt(t, time.Now())
 		imgs := []db.Image{
-			givenImageCreatedAt(time.Now().Add(-3 * time.Hour)),
-			givenImageCreatedAt(time.Now().Add(-2 * time.Hour)),
-			givenImageCreatedAt(time.Now().Add(-time.Hour)),
+			givenImageCreatedAt(t, time.Now().Add(-3*time.Hour)),
+			givenImageCreatedAt(t, time.Now().Add(-2*time.Hour)),
+			givenImageCreatedAt(t, time.Now().Add(-time.Hour)),
 			fromImg,
-			givenImageCreatedAt(time.Now().Add(time.Hour)),
-			givenImageCreatedAt(time.Now().Add(2 * time.Hour)),
-			givenImageCreatedAt(time.Now().Add(3 * time.Hour)),
-			givenImageCreatedAt(time.Now().Add(4 * time.Hour)),
+			givenImageCreatedAt(t, time.Now().Add(time.Hour)),
+			givenImageCreatedAt(t, time.Now().Add(2*time.Hour)),
+			givenImageCreatedAt(t, time.Now().Add(3*time.Hour)),
+			givenImageCreatedAt(t, time.Now().Add(4*time.Hour)),
 		}
 
 		for _, img := range imgs {
@@ -201,19 +201,19 @@ func TestDB(t *testing.T) {
 	})
 
 	t.Run("should filter by country with cursor", func(t *testing.T) {
-		table := newTestTable(t)
+		table := dbtest.NewTestTable(t)
 		defer table.Close()
 
-		imgs := givenSaved(t, table, spaceByHour([]db.Image{
-			givenImageInLocale("United States", "New York"),
-			givenImageInLocale("Chile", "Santiago"),
-			givenImageInLocale("Argentina", "Buenos Aires"),
-			givenImageInLocale("Chile", "Santiago"),
-			givenImageInLocale("Chile", "Puerto Natales"),
-			givenImageInLocale("Chile", "Santiago"),
-			givenImageInLocale("Chile", "Santiago"),
-			givenImageInLocale("Bolivia", "La Paz"),
-			givenImageInLocale("Chile", "Santiago"),
+		imgs := dbtest.GivenSaved(t, table, dbtest.SpaceByHour([]db.Image{
+			givenImageInLocale(t, "United States", "New York"),
+			givenImageInLocale(t, "Chile", "Santiago"),
+			givenImageInLocale(t, "Argentina", "Buenos Aires"),
+			givenImageInLocale(t, "Chile", "Santiago"),
+			givenImageInLocale(t, "Chile", "Puerto Natales"),
+			givenImageInLocale(t, "Chile", "Santiago"),
+			givenImageInLocale(t, "Chile", "Santiago"),
+			givenImageInLocale(t, "Bolivia", "La Paz"),
+			givenImageInLocale(t, "Chile", "Santiago"),
 		})...)
 
 		tests := []struct {
@@ -266,19 +266,19 @@ func TestDB(t *testing.T) {
 	})
 
 	t.Run("should work with cursor", func(t *testing.T) {
-		table := newTestTable(t)
+		table := dbtest.NewTestTable(t)
 		defer table.Close()
 
-		imgs := givenSaved(t, table, spaceByHour([]db.Image{
-			givenImageInLocale("Chile", "Santiago"),
-			givenImageInLocale("Chile", "Santiago"),
-			givenImageInLocale("Chile", "Santiago"),
-			givenImageInLocale("United States", "New York"),
-			givenImageInLocale("Chile", "Santiago"),
-			givenImageInLocale("Chile", "Santiago"),
-			givenImageInLocale("Chile", "Santiago"),
-			givenImageInLocale("Chile", "Santiago"),
-			givenImageInLocale("Chile", "Santiago"),
+		imgs := dbtest.GivenSaved(t, table, dbtest.SpaceByHour([]db.Image{
+			givenImageInLocale(t, "Chile", "Santiago"),
+			givenImageInLocale(t, "Chile", "Santiago"),
+			givenImageInLocale(t, "Chile", "Santiago"),
+			givenImageInLocale(t, "United States", "New York"),
+			givenImageInLocale(t, "Chile", "Santiago"),
+			givenImageInLocale(t, "Chile", "Santiago"),
+			givenImageInLocale(t, "Chile", "Santiago"),
+			givenImageInLocale(t, "Chile", "Santiago"),
+			givenImageInLocale(t, "Chile", "Santiago"),
 		})...)
 
 		cursor, err := db.NewCursor(db.GetListOpts{
@@ -309,7 +309,7 @@ func TestDB(t *testing.T) {
 	})
 
 	t.Run("should get all localities", func(t *testing.T) {
-		table := newTestTable(t)
+		table := dbtest.NewTestTable(t)
 		defer table.Close()
 
 		countryLocalities := map[string][]string{
@@ -330,43 +330,26 @@ func TestDB(t *testing.T) {
 	})
 }
 
-func givenCountriesAndLocalities(t *testing.T, it testTable, countryLocalities map[string][]string) {
+func givenCountriesAndLocalities(t *testing.T, it dbtest.TestTable, countryLocalities map[string][]string) {
 	for country, localities := range countryLocalities {
 		for _, l := range localities {
-			err := it.Save(givenImageInLocale(country, l))
+			err := it.Save(givenImageInLocale(t, country, l))
 			require.NoError(t, err)
 		}
 	}
 }
 
-func givenImageCreatedAt(t time.Time) db.Image {
-	return db.Image{
-		ID:        gonanoid.Must(),
-		CreatedAt: t,
-	}
+func givenImageCreatedAt(t *testing.T, tt time.Time) db.Image {
+	i := dbtest.GivenImage(t)
+	i.CreatedAt = tt
+	return i
 }
 
-func spaceByHour(imgs []db.Image) []db.Image {
-	for i := range imgs {
-		imgs[i].CreatedAt = time.Now().Add(-time.Hour * time.Duration(len(imgs)-i))
-	}
-	return imgs
-}
-
-func givenSaved(t *testing.T, table testTable, images ...db.Image) []db.Image {
-	for _, img := range images {
-		err := table.Save(img)
-		require.NoError(t, err)
-	}
-	return images
-}
-
-func givenImageInLocale(country, locality string) db.Image {
-	return db.Image{
-		ID:       gonanoid.Must(),
-		Locality: locality,
-		Country:  country,
-	}
+func givenImageInLocale(t *testing.T, country, locality string) db.Image {
+	i := dbtest.GivenImage(t)
+	i.Country = country
+	i.Locality = locality
+	return i
 }
 
 func assertContainsLocality(t *testing.T, ll []db.Locality, country string, localities []string) {
@@ -383,23 +366,6 @@ func assertContainsLocality(t *testing.T, ll []db.Locality, country string, loca
 	}
 	assert.Truef(t, found, "country %s not found", country)
 
-}
-
-type testTable struct {
-	t *testing.T
-	*db.ImageTable
-}
-
-func newTestTable(t *testing.T) testTable {
-	require.NoFileExists(t, "test-saws.sqlite")
-	table, err := db.NewImageTable("file:test-saws.sqlite")
-	require.NoError(t, err)
-	return testTable{t, table}
-}
-
-func (t *testTable) Close() error {
-	_ = t.ImageTable.Close()
-	return os.Remove("test-saws.sqlite")
 }
 
 func assertContainsRowWithID(t *testing.T, imgs []db.Image, id string) {

@@ -85,7 +85,7 @@ type testFileChecker struct {
 	root string
 }
 
-func (f testFileChecker) testFileSaved(t *testing.T, store image.ImageFileStore, imageFile fs.File, expectedFileName string) image.Image {
+func (f testFileChecker) testFileSaved(t *testing.T, store image.FileStoreImpl, imageFile fs.File, expectedFileName string) image.Image {
 	imgBytes, err := io.ReadAll(imageFile)
 	require.NoError(t, err)
 

@@ -20,20 +20,26 @@ import (
 	"github.com/rwcarlsen/goexif/tiff"
 )
 
-func NewImageFileStore(root string) (ImageFileStore, error) {
+type FileStore interface {
+	Save(file io.Reader) (Image, error)
+	ReadFile(id string) ([]byte, error)
+	Delete(id string) error
+}
+
+func NewImageFileStore(root string) (FileStoreImpl, error) {
 	// create uploads folder if not already created
 	if _, err := os.Stat(root); os.IsNotExist(err) {
 		err = os.MkdirAll(root, 0755)
 		if err != nil {
-			return ImageFileStore{}, err
+			return FileStoreImpl{}, err
 		}
 
 	}
 
-	return ImageFileStore{dir: root}, nil
+	return FileStoreImpl{dir: root}, nil
 }
 
-type ImageFileStore struct {
+type FileStoreImpl struct {
 	dir string
 }
 
@@ -49,7 +55,7 @@ type Image struct {
 	Long      float64
 }
 
-func (s ImageFileStore) Save(file io.Reader) (Image, error) {
+func (s FileStoreImpl) Save(file io.Reader) (Image, error) {
 	h := sha256.New()
 	fileBuf := new(bytes.Buffer)
 
@@ -138,7 +144,7 @@ func getExifData(r io.Reader) (exifData, error) {
 	return ed, err
 }
 
-func (s ImageFileStore) Delete(id string) error {
+func (s FileStoreImpl) Delete(id string) error {
 	filename, ok, err := s.checkFilename(id)
 	if err != nil {
 		return fmt.Errorf("could not delete image %s: %w", id, err)
@@ -155,7 +161,7 @@ func (s ImageFileStore) Delete(id string) error {
 	return nil
 }
 
-func (s ImageFileStore) checkFilename(id string) (string, bool, error) {
+func (s FileStoreImpl) checkFilename(id string) (string, bool, error) {
 	dir, err := os.ReadDir(s.dir)
 	if err != nil {
 		return "", false, fmt.Errorf("could not read dir on filename check %s: %w", id, err)
@@ -168,7 +174,7 @@ func (s ImageFileStore) checkFilename(id string) (string, bool, error) {
 	return "", false, nil
 }
 
-func (s ImageFileStore) ReadFile(id string) ([]byte, error) {
+func (s FileStoreImpl) ReadFile(id string) ([]byte, error) {
 	filename, ok, err := s.checkFilename(id)
 	if err != nil {
 		return nil, fmt.Errorf("could not get image file %s: %w", id, err)

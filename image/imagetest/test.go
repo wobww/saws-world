@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/wobwainwwight/sa-photos/image"
 )
@@ -60,7 +61,7 @@ func NewStore() *TestStore {
 }
 
 type TestStore struct {
-	store     *image.ImageFileStore
+	store     *image.FileStoreImpl
 	dir       string
 	fileNames []string
 }
@@ -73,6 +74,19 @@ func (t *TestStore) Save(r io.Reader) (image.Image, error) {
 
 	t.fileNames = append(t.fileNames, i.FileName)
 	return i, nil
+}
+
+func (t *TestStore) Delete(id string) error {
+	err := t.store.Delete(id)
+	if err != nil {
+		return err
+	}
+	t.removeFileName(id)
+	return nil
+}
+
+func (t *TestStore) ReadFile(id string) ([]byte, error) {
+	return t.store.ReadFile(id)
 }
 
 // Close removes all files created by the teststore
@@ -89,6 +103,11 @@ func (t *TestStore) Close() {
 
 func (t *TestStore) appendFileName(name string) string {
 	return filepath.Join(t.dir, name)
+}
+
+func (t *TestStore) removeFileName(name string) {
+	i := slices.Index(t.fileNames, name)
+	t.fileNames = slices.Delete(t.fileNames, i, i+1)
 }
 
 func (t *TestStore) FileExistsWithName(name string) bool {
