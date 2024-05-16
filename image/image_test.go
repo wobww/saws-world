@@ -44,7 +44,7 @@ func TestImageStore(t *testing.T) {
 
 		assert.Greater(t, img.Created, time.Unix(0, 0))
 
-		assert.Equal(t, "GfgNDYIneId/eHi6eGeIg1egcDcK", img.ThumbHash)
+		assert.Equal(t, "GfgNDYIneIePeHi6eGeIg1egcDcK", img.ThumbHash)
 	})
 
 	t.Run("should get lat long information if exists", func(t *testing.T) {

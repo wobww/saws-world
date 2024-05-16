@@ -47,7 +47,7 @@ func main() {
 
 	password, passwordOK := os.LookupEnv("SAWS_PASSWORD")
 
-	_ = router.RequireBasicAuth(router.BasicAuthMiddlewareOpts{
+	basicAuth := router.RequireBasicAuth(router.BasicAuthMiddlewareOpts{
 		Enabled:  passwordOK,
 		Password: password,
 	})
@@ -64,7 +64,7 @@ func main() {
 	}
 
 	log.Println("debug", debugEnv)
-	_ = router.Debug(debugEnv == "1")
+	debug := router.Debug(debugEnv == "1")
 
 	appTemplates, err := templates.GetTemplates()
 	if err != nil {
@@ -117,7 +117,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:    addr,
-		Handler: router,
+		Handler: debug(basicAuth(router)),
 	}
 
 	go func() {
