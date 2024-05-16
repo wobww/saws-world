@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -388,13 +389,18 @@ func (ro *Router) postImage(w http.ResponseWriter, r *http.Request) {
 
 	img, err := ro.saveImage(r.Body)
 	if err != nil {
+		var exists image.ErrExist
+		if errors.As(err, &exists) {
+			w.Header().Add("Location", fmt.Sprintf("/images/%s", exists.ID))
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 		log.Print(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	imageURL := fmt.Sprintf("/images/%s", img.ID)
-	w.Header().Add("Location", imageURL)
+	w.Header().Add("Location", fmt.Sprintf("/images/%s", img.ID))
 	w.WriteHeader(http.StatusCreated)
 	log.Println("created image: ", img.ID)
 }

@@ -202,6 +202,51 @@ func TestRouter(t *testing.T) {
 
 }
 
+func TestImageUpload(t *testing.T) {
+
+	table := dbtest.NewTestTable(t)
+	defer table.Close()
+
+	tmpl, err := templates.GetTemplates()
+	require.NoError(t, err)
+
+	imgStore := imagetest.NewStore()
+	defer imgStore.Close()
+
+	srv := router.NewRouter(router.Services{
+		ImageFileStore: imgStore,
+		Templates:      tmpl,
+		ImageTable:     table.ImageTable,
+	}, router.Options{
+		IncludeIndexPage: false,
+	})
+
+	t.Run("should upload image", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+
+		req, err := http.NewRequest(http.MethodPost, "/images", imagetest.FishJPEG())
+		require.NoError(t, err)
+
+		srv.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusCreated, rr.Result().StatusCode)
+		assert.Equal(t, "/images/6a14a3595a01", rr.Result().Header.Get("Location"))
+
+		t.Run("should return 204 when trying to upload again", func(t *testing.T) {
+			rr := httptest.NewRecorder()
+
+			req, err := http.NewRequest(http.MethodPost, "/images", imagetest.FishJPEG())
+			require.NoError(t, err)
+
+			srv.ServeHTTP(rr, req)
+
+			assert.Equal(t, http.StatusNoContent, rr.Result().StatusCode)
+			assert.Equal(t, "/images/6a14a3595a01", rr.Result().Header.Get("Location"))
+		})
+
+	})
+}
+
 type scenario struct {
 	Name   string
 	Method string

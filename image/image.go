@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"image"
 	_ "image/jpeg"
@@ -86,8 +87,13 @@ func (s FileStoreImpl) Save(file io.Reader) (Image, error) {
 	id := fmt.Sprintf("%x", h.Sum(nil))[:12]
 
 	fileName := fmt.Sprintf("%s.%s", id, imgType)
+	filePath := filepath.Join(s.dir, fileName)
 
-	dst, err := os.Create(filepath.Join(s.dir, fileName))
+	if _, err := os.Stat(filePath); !errors.Is(err, os.ErrNotExist) {
+		return Image{}, ErrExist{ID: id}
+	}
+
+	dst, err := os.Create(filePath)
 	if err != nil {
 		return Image{}, fmt.Errorf("could not save image: %w", err)
 	}
@@ -142,6 +148,14 @@ func getExifData(r io.Reader) (exifData, error) {
 	}
 	ed.lat, ed.long, err = GetLatLongFromExif(e)
 	return ed, err
+}
+
+type ErrExist struct {
+	ID string
+}
+
+func (i ErrExist) Error() string {
+	return fmt.Sprintf("image exists: %s", i.ID)
 }
 
 func (s FileStoreImpl) Delete(id string) error {
