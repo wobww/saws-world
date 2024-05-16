@@ -12,6 +12,8 @@ import (
 	"syscall"
 	"time"
 
+	"net/http/pprof"
+
 	"github.com/wobwainwwight/sa-photos/db"
 	"github.com/wobwainwwight/sa-photos/image"
 	"github.com/wobwainwwight/sa-photos/router"
@@ -45,7 +47,7 @@ func main() {
 
 	password, passwordOK := os.LookupEnv("SAWS_PASSWORD")
 
-	requireBasicAuth := router.RequireBasicAuth(router.BasicAuthMiddlewareOpts{
+	_ = router.RequireBasicAuth(router.BasicAuthMiddlewareOpts{
 		Enabled:  passwordOK,
 		Password: password,
 	})
@@ -62,7 +64,7 @@ func main() {
 	}
 
 	log.Println("debug", debugEnv)
-	debug := router.Debug(debugEnv == "1")
+	_ = router.Debug(debugEnv == "1")
 
 	appTemplates, err := templates.GetTemplates()
 	if err != nil {
@@ -104,12 +106,18 @@ func main() {
 		Admins:           admins,
 	})
 
+	router.HandleFunc("/debug/pprof/", pprof.Index)
+	router.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	router.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	router.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	router.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
 
 	srv := &http.Server{
 		Addr:    addr,
-		Handler: debug(requireBasicAuth(router)),
+		Handler: router,
 	}
 
 	go func() {
