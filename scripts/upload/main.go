@@ -14,22 +14,23 @@ func main() {
 	}
 	inf, err := os.Stat(os.Args[1])
 	if err != nil {
-		fmt.Println(err.Error())
+		errorOut(err)
 		return
 	}
 
 	if inf.IsDir() {
+		fmt.Fprintf(os.Stdout, "uploading files in: %s\n", os.Args[1])
 		err = uploadImagesInDir(os.Args[1])
-		if err != nil {
-			fmt.Println(err.Error())
-		}
 	} else {
-		uploadFile(os.Args[1])
+		err = uploadFile(os.Args[1])
+	}
+
+	if err != nil {
+		errorOut(err)
 	}
 }
 
 func uploadImagesInDir(dir string) error {
-	fmt.Printf("uploading files in: %s\n", dir)
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return err
@@ -40,7 +41,6 @@ func uploadImagesInDir(dir string) error {
 		}
 
 		ext := filepath.Ext(e.Name())
-		fmt.Println(ext)
 		if ext == ".jpeg" || ext == ".jpg" {
 			path := filepath.Join(dir, e.Name())
 
@@ -48,7 +48,6 @@ func uploadImagesInDir(dir string) error {
 			if err != nil {
 				return err
 			}
-			fmt.Println("uploading", path)
 			resp, err := http.Post("http://localhost:8080/images", "image/jpeg", f)
 			if err != nil {
 				return err
@@ -65,11 +64,26 @@ func uploadFile(path string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("uploading", path)
-	resp, err := http.Post("http://localhost:8080/images", "image/jpeg", f)
+	req, err := http.NewRequest(http.MethodPost, "https://saws.world/images", f)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("posted file %s: %d\n", path, resp.StatusCode)
+	req.SetBasicAuth(os.Getenv("SAWS_USER"), os.Getenv("SAWS_PASSWORD"))
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("could not upload %s : %w", path, err)
+	}
+
+	if resp.StatusCode < 400 {
+		fmt.Fprintf(os.Stdout, "%d %s %s\n", resp.StatusCode, path, resp.Header.Get("Location"))
+	} else {
+		return fmt.Errorf("%d %s", resp.StatusCode, path)
+	}
 	return nil
+}
+
+func errorOut(err error) {
+	fmt.Fprintf(os.Stderr, "%s\n", err.Error())
+	os.Exit(1)
 }

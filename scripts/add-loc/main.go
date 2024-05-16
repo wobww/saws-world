@@ -4,21 +4,36 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"net/http"
 	"os"
 )
 
 func main() {
-	if len(os.Args) != 2 {
-		fmt.Println("usage: add-loc <img>")
+	lFlag := flag.String("locality", "", "locality")
+	cFlag := flag.String("country", "", "country")
+
+	flag.Parse()
+
+	args := flag.Args()
+	if len(args) != 1 {
+		os.Stderr.WriteString("usage: add-loc --country Chile --locality Santiago <image>\n")
 		os.Exit(1)
 		return
 	}
 
-	file, err := os.Open(os.Args[1])
+	if lFlag == nil || cFlag == nil || len(*lFlag) == 0 || len(*cFlag) == 0 {
+		os.Stderr.WriteString("locality and country must be provided\n")
+		os.Exit(1)
+		return
+	}
+	locality := *lFlag
+	country := *cFlag
+
+	file, err := os.Open(args[0])
 	if err != nil {
-		fmt.Println(err.Error())
+		os.Stderr.WriteString(err.Error())
 		os.Exit(1)
 		return
 	}
@@ -26,7 +41,7 @@ func main() {
 	h := sha256.New()
 	_, err = file.WriteTo(h)
 	if err != nil {
-		fmt.Println(err.Error())
+		os.Stderr.WriteString(err.Error())
 		os.Exit(1)
 		return
 	}
@@ -39,11 +54,11 @@ func main() {
 	}
 
 	b, err := json.Marshal(loc{
-		Locality: "Santiago",
-		Country:  "Chile",
+		Locality: locality,
+		Country:  country,
 	})
 	if err != nil {
-		fmt.Println(err.Error())
+		os.Stderr.WriteString(err.Error())
 		os.Exit(1)
 		return
 	}
@@ -52,7 +67,7 @@ func main() {
 
 	req, err := http.NewRequest(http.MethodPatch, fmt.Sprintf("https://saws.world/images/%s", id), body)
 	if err != nil {
-		fmt.Println(err.Error())
+		os.Stderr.WriteString(err.Error())
 		os.Exit(1)
 		return
 	}
@@ -61,18 +76,10 @@ func main() {
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		fmt.Println(err.Error())
+		os.Stderr.WriteString(err.Error())
 		os.Exit(1)
 		return
 	}
 
-	buf := bytes.Buffer{}
-
-	_, err = buf.ReadFrom(resp.Body)
-	if err != nil {
-		fmt.Println(err.Error())
-		return
-	}
-
-	fmt.Println(resp.StatusCode, buf.String())
+	fmt.Fprintf(os.Stdout, "%d %s %s %s\n", resp.StatusCode, country, locality, id)
 }
