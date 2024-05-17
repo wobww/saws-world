@@ -436,11 +436,7 @@ func (ro *Router) patchImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if imgPatch.ID != id {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
+	imgPatch.ID = id
 	err = ro.ImageTable.Save(imgPatch)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
