@@ -413,6 +413,13 @@ func (ro *Router) getImage(w http.ResponseWriter, r *http.Request) {
 		code := http.StatusInternalServerError
 		if image.IsNotFound(err) {
 			code = http.StatusNotFound
+
+			// need to keep table consistent
+			delErr := ro.ImageTable.Delete(id)
+			if delErr != nil {
+				log.Printf("could not delete %s from table: %s\n", id, delErr.Error())
+
+			}
 		}
 		log.Println(err.Error())
 		http.Error(w, err.Error(), code)
