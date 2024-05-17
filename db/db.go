@@ -76,7 +76,8 @@ func (i *ImageTable) Save(img Image) error {
 	_, err := i.DB.Exec(`
 		INSERT INTO image
 		(id, mime_type, width, height, thumbhash, lat, long, locality, country, created_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?);`,
+		VALUES (?,?,?,?,?,?,?,?,?,?)
+		ON CONFLICT DO UPDATE SET country=excluded.country,locality=excluded.locality;`,
 		img.ID,
 		img.MimeType,
 		img.Width,

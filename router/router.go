@@ -173,7 +173,7 @@ func (ro *Router) southAmerica(w http.ResponseWriter, r *http.Request) {
 
 	imgPage := ImagesPage{}
 
-	deleteEnabled := determineCanDelete(r, ro.Admins)
+	deleteEnabled := detemineIsAdmin(r, ro.Admins)
 
 	if order == "latest" {
 		imgPage.OrderBy = "latest"
@@ -221,7 +221,7 @@ func (ro *Router) southAmericaList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	deleteEnabled := determineCanDelete(r, ro.Admins)
+	deleteEnabled := detemineIsAdmin(r, ro.Admins)
 
 	il := ImagesPage{}
 
@@ -287,7 +287,7 @@ func (ro *Router) southAmericaImage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ro *Router) putImages(w http.ResponseWriter, r *http.Request) {
-	canDelete := determineCanDelete(r, ro.Admins)
+	canDelete := detemineIsAdmin(r, ro.Admins)
 
 	mr, err := r.MultipartReader()
 	if err != nil {
@@ -426,25 +426,27 @@ func (ro *Router) getImage(w http.ResponseWriter, r *http.Request) {
 func (ro *Router) patchImage(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 
-	type loc struct {
-		Locality string `json:"locality"`
-		Country  string `json:"country"`
-	}
+	imgPatch := db.Image{}
 
 	dec := json.NewDecoder(r.Body)
 
-	ll := loc{}
-	err := dec.Decode(&ll)
+	err := dec.Decode(&imgPatch)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	_, err = ro.ImageTable.DB.Exec("UPDATE image SET locality = (?), country = (?) WHERE id = (?)", ll.Locality, ll.Country, id)
+	if imgPatch.ID != id {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	err = ro.ImageTable.Save(imgPatch)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -593,7 +595,7 @@ func reverseOrder(order db.Order) db.Order {
 	return db.ASC
 }
 
-func determineCanDelete(r *http.Request, admins []string) bool {
+func detemineIsAdmin(r *http.Request, admins []string) bool {
 	if len(admins) == 0 {
 		return false
 	}

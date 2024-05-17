@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wobwainwwight/sa-photos/db"
@@ -312,10 +314,9 @@ func TestDB(t *testing.T) {
 		table := dbtest.NewTestTable(t)
 		defer table.Close()
 
-		countryLocalities := map[string][]string{
-			"United States": {"New York", "Washington DC", "Los Angeles"},
-			"Wales":         {"Cardiff", "Swansea", "Newport"},
-			"Argentina":     {"San Carlos de Bariloche", "Mendoza"},
+		countryLocalities := map[string][]string{"United States": {"New York", "Washington DC", "Los Angeles"},
+			"Wales":     {"Cardiff", "Swansea", "Newport"},
+			"Argentina": {"San Carlos de Bariloche", "Mendoza"},
 		}
 
 		givenCountriesAndLocalities(t, table, countryLocalities)
@@ -328,6 +329,53 @@ func TestDB(t *testing.T) {
 		}
 
 	})
+
+	t.Run("should upsert", func(t *testing.T) {
+		table := dbtest.NewTestTable(t)
+		defer table.Close()
+
+		t.Run("country", func(t *testing.T) {
+			img := dbtest.GivenImage(t)
+			img.Country = "Wales"
+
+			err := table.Save(img)
+			require.NoError(t, err)
+
+			upserted := img
+			upserted.Country = "UK"
+			assert.NotEqual(t, upserted, img)
+
+			err = table.Save(upserted)
+			require.NoError(t, err)
+
+			fetched, err := table.GetByID(img.ID)
+			require.NoError(t, err)
+
+			assertImageEqual(t, upserted, fetched)
+		})
+
+		t.Run("locality", func(t *testing.T) {
+			img := dbtest.GivenImage(t)
+			img.Locality = "Brecon"
+
+			err := table.Save(img)
+			require.NoError(t, err)
+
+			upserted := img
+			upserted.Locality = "Abergavenny"
+			assert.NotEqual(t, upserted, img)
+
+			err = table.Save(upserted)
+			require.NoError(t, err)
+
+			fetched, err := table.GetByID(img.ID)
+			require.NoError(t, err)
+
+			assertImageEqual(t, upserted, fetched)
+		})
+
+	})
+
 }
 
 func givenCountriesAndLocalities(t *testing.T, it dbtest.TestTable, countryLocalities map[string][]string) {
@@ -372,4 +420,9 @@ func assertContainsRowWithID(t *testing.T, imgs []db.Image, id string) {
 	assert.Truef(t, slices.ContainsFunc(imgs, func(img db.Image) bool {
 		return img.ID == id
 	}), "does not contain row with id %s", id)
+}
+
+func assertImageEqual(t *testing.T, img1 db.Image, img2 db.Image) {
+	eq := cmp.Equal(img1, img2, cmpopts.EquateApproxTime(time.Second))
+	assert.True(t, eq)
 }
