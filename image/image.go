@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"image"
 	_ "image/jpeg"
@@ -88,10 +87,6 @@ func (s FileStoreImpl) Save(file io.Reader) (Image, error) {
 
 	fileName := fmt.Sprintf("%s.%s", id, imgType)
 	filePath := filepath.Join(s.dir, fileName)
-
-	if _, err := os.Stat(filePath); !errors.Is(err, os.ErrNotExist) {
-		return Image{}, ErrExist{ID: id}
-	}
 
 	dst, err := os.Create(filePath)
 	if err != nil {
