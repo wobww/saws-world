@@ -23,8 +23,8 @@ func main() {
 		return
 	}
 
-	if lFlag == nil || cFlag == nil || len(*lFlag) == 0 || len(*cFlag) == 0 {
-		os.Stderr.WriteString("locality and country must be provided\n")
+	if len(*cFlag) == 0 {
+		os.Stderr.WriteString("country must be provided\n")
 		os.Exit(1)
 		return
 	}
