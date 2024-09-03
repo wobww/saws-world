@@ -1,4 +1,4 @@
-module github.com/wobwainwwight/sa-photos
+module github.com/wobww/saws-world
 
 go 1.22
 
