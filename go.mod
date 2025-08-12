@@ -1,6 +1,8 @@
 module github.com/wobwainwwight/sa-photos
 
-go 1.22
+go 1.23.0
+
+toolchain go1.23.12
 
 require (
 	github.com/galdor/go-thumbhash v1.0.1-0.20240227061205-5f40e920ff45
@@ -17,7 +19,7 @@ require (
 	github.com/google/uuid v1.1.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	go.opencensus.io v0.22.3 // indirect
-	golang.org/x/image v0.14.0 // indirect
+	golang.org/x/image v0.30.0 // indirect
 	golang.org/x/time v0.0.0-20200416051211-89c76fbcd5d1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
